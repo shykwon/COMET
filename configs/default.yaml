@@ -1,0 +1,67 @@
+model:
+  d_model: 128
+  n_heads: 8
+  n_encoder_layers: 2
+  patch_len: 4
+  stride: 2
+  dropout: 0.1
+  use_codebook: true
+  ts_input: false
+  restore_alpha: 0.1
+  adaptive_alpha: true
+
+  temporal:
+    n_layers: 1
+    d_state: 16
+    d_conv: 4
+    expand: 2
+
+  codebook:
+    K: 16
+    tau: 0.5
+    ema_alpha: 0.99
+
+data:
+  dataset: "solar"
+  data_dir: "./data"
+  seq_len: 12
+  pred_len: 12
+  global_scaler: true
+
+training:
+  batch_size: 64
+  learning_rate: 1.0e-3
+  weight_decay: 1.0e-4
+  grad_clip: 5.0
+  epochs: 100
+  patience: 15
+  seed: 42
+  missing_rate: 0.85
+  loss_fn: "mae"
+
+  # Curriculum
+  stage1_epochs: 10
+  stage2_max_epochs: 5
+  stage2_min_epochs: 1
+  cos_sim_threshold: 0.85
+  cos_sim_patience: 3
+  lambda_align_max: 0.15
+  lambda_match_max: 0.075
+  entropy_reg_weight: 0.2
+  mask_ratio_max: 0.85
+  disable_stage3: false
+
+  # Loss
+  denorm_loss: true
+  null_val: 0.0
+  miss_loss_weight: 0.5
+  disable_ema: true
+
+hardware:
+  device: "cuda"
+  num_workers: 4
+  pin_memory: true
+
+logging:
+  log_dir: "./logs"
+  log_interval: 50
