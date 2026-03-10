@@ -131,6 +131,7 @@ def main():
         restore_alpha=cfg["model"].get("restore_alpha", 0.1),
         adaptive_alpha=cfg["model"].get("adaptive_alpha", True),
         ts_input=cfg["model"].get("ts_input", False),
+        head_type=cfg["model"].get("head_type", "mtgnn"),
     ).to(device)
 
     # Dummy forward to initialize lazy layers
