@@ -34,8 +34,8 @@ CLAUDE.md
 .DS_Store
 Thumbs.db
 
-# Experiments — tracked on this branch
-# experiments/
+# Experiments (private)
+experiments/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -45,18 +45,10 @@ wandb/
 mlruns/
 *.wandb
 
-# Large files (data는 별도 관리)
+# Large files
 *.h5
 *.hdf5
 *.npy
 *.npz
 *.pkl
 *.pickle
-
-# But keep experiment result files
-!experiments/**/*.json
-!experiments/**/*.csv
-!experiments/**/*.yaml
-!experiments/**/*.md
-!experiments/**/*.png
-!experiments/**/*.pdf
