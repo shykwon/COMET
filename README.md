@@ -6,12 +6,13 @@
 
 COMET addresses Variable Subset Forecasting (VSF), where an arbitrary subset of sensors may be unavailable at inference time. It maintains a codebook of normal-state system patterns learned during training and uses them to restore missing variate embeddings at inference.
 
-**Architecture:**
-1. **CI-Mamba** — Per-variate independent temporal encoding via Mamba SSM
-2. **Asymmetric Encoder** — Compresses observed variates into a system state summary
-3. **Codebook Lookup** — Matches the system state to learned normal patterns
-4. **Restoration Decoder** — Restores missing variate embeddings via cross-attention with codebook
-5. **MTGNN Head** — Spatiotemporal graph neural network for final prediction
+**Architecture (End-to-End):**
+1. **Patch Embedding** — Splits time series into patches and projects to d_model dimensions
+2. **CI-Mamba** — Per-variate independent temporal encoding via Mamba SSM
+3. **Patch-Level Encoder** — Compresses observed variate patches into a system state summary (Q_sub)
+4. **Codebook Lookup** — Matches Q_sub to learned normal-state patterns
+5. **Two-Stage Decoder** — Restores missing variate patches via observed cross-attention (Stage A) + codebook cross-attention (Stage B)
+6. **MTGNN Head** — Receives patch embeddings directly (in_dim=d_model), spatiotemporal graph prediction
 
 **Training** uses a 3-stage curriculum:
 - Stage 1: Warm-up with full observation (codebook initialization via K-Means)
@@ -45,13 +46,13 @@ data/
 
 ```bash
 # Solar dataset (default config)
-python scripts/train.py --dataset solar --data_dir ./data --amp_bf16
+python scripts/train.py --dataset solar --data_dir ./data --batch_size 16 --amp_bf16
 
-# METR-LA
-python scripts/train.py --dataset metr-la --data_dir ./data --batch_size 32 --amp_bf16
+# Ablation: time-series input (in_dim=1, like baselines)
+python scripts/train.py --dataset solar --data_dir ./data --batch_size 16 --amp_bf16 --ts_input
 
-# Traffic
-python scripts/train.py --dataset traffic --data_dir ./data --batch_size 8 --amp_bf16
+# Ablation: without codebook
+python scripts/train.py --dataset solar --data_dir ./data --batch_size 16 --amp_bf16 --no_codebook
 ```
 
 ## Evaluation
