@@ -249,11 +249,30 @@ class COMET(nn.Module):
 
     def forward_full(self, x: torch.Tensor,
                      return_embeddings: bool = False):
-        """Teacher forward with all variates observed."""
+        """Teacher forward with all variates observed.
+
+        Only runs up to encoder + codebook (skips decoder and head)
+        since only Q_full and w_full are needed for alignment losses.
+        """
         B, N, T = x.shape
-        mask = torch.ones(B, N, dtype=torch.bool, device=x.device)
+        device = x.device
+
+        # ① + ② Patch Embedding + Temporal
+        h_patched = self.temporal_path(self.patch_embedding(x))  # [B, N, L, D]
+
+        # ③ PatchLevelEncoder (all variates observed)
+        obs_idx = torch.arange(N, device=device).unsqueeze(0).expand(B, -1)
+        obs_pad = torch.zeros(B, N, dtype=torch.bool, device=device)
+        Q_full, tokens_obs_patches = self.encoder(h_patched, obs_idx, padding_mask=obs_pad)
+
+        # ④ Codebook
+        if self.use_codebook:
+            _, w_full, _ = self.codebook.soft_lookup(Q_full, obs_ratio=torch.ones(B, device=device))
+        else:
+            K = self.codebook.C.shape[0]
+            w_full = torch.ones(B, K, device=device, dtype=h_patched.dtype) / K
+
         if return_embeddings:
-            y, Q, w, _, E, _ = self.forward(x, mask, return_embeddings=True)
-            return y, Q, w, E
-        y, Q, w, _ = self.forward(x, mask)
-        return y, Q, w
+            E_var = h_patched.mean(dim=2)  # [B, N, D]
+            return None, Q_full, w_full, E_var
+        return None, Q_full, w_full
