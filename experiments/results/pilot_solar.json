@@ -1,0 +1,40 @@
+{
+  "description": "Pilot runs — 1-seed sanity check (NOT for paper)",
+  "dataset": "solar",
+  "protocol": "1-seed, 1-mask eval",
+  "runs": {
+    "comet_full": {
+      "log_dir": "comet_solar_K16_s42_20260309_145454",
+      "seed": 42,
+      "missing_rate": 0.85,
+      "ts_input": false,
+      "use_codebook": true,
+      "temporal": "mamba",
+      "epochs_trained": 55,
+      "early_stopped": true,
+      "test": {
+        "ObsMAE": 2.122,
+        "ObsRMSE": 3.614,
+        "MissMAE": 2.430,
+        "MAE": 2.383,
+        "RMSE": 3.937
+      }
+    },
+    "ts_input": {
+      "log_dir": "comet_solar_K16_s42_20260309_222200",
+      "seed": 42,
+      "missing_rate": 0.85,
+      "ts_input": true,
+      "use_codebook": true,
+      "temporal": "mamba",
+      "status": "done",
+      "test": {
+        "ObsMAE": 2.600,
+        "ObsRMSE": 4.183,
+        "MissMAE": 2.675,
+        "MAE": 2.664,
+        "RMSE": 4.255
+      }
+    }
+  }
+}

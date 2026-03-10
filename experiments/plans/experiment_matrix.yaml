@@ -1,0 +1,122 @@
+# COMET Experiment Matrix
+# 평가 프로토콜: 10-seed × 100-mask → Mean/Std
+# 지표: ObsMAE, ObsRMSE (비정규화, null_val=0.0 제외)
+
+datasets:
+  - solar       # 137 variates
+  - metr-la     # 207 variates
+  - traffic     # 862 variates
+  - ecg5000     # 140 variates
+
+# ---------------------------------------------------------------
+# RQ1-a: VSF 바운드 비교
+# ---------------------------------------------------------------
+RQ1a_bounds:
+  description: "Partial(0-fill) vs Oracle(100%) vs COMET"
+  runs:
+    - name: oracle
+      missing_rate: 0.0
+      status: TODO         # 10-seed 필요
+    - name: partial
+      missing_rate: 0.85
+      no_codebook: true
+      status: TODO
+    - name: comet
+      missing_rate: 0.85
+      status: TODO         # 10-seed 필요
+
+# ---------------------------------------------------------------
+# RQ1-b: SOTA 베이스라인 비교 (외부 코드)
+# ---------------------------------------------------------------
+RQ1b_baselines:
+  description: "SOTA 비교 — 별도 repo에서 실행"
+  methods: [MICE, KNNE, TRMF, CSDI, SAITS, SS-GAN, FDW, TRF, GIMCC, GinAR, VIDA]
+  status: TODO
+
+# ---------------------------------------------------------------
+# RQ2: 결측률 강건성
+# ---------------------------------------------------------------
+RQ2_missing_rate:
+  description: "관측 비율별 ObsMAE 곡선"
+  missing_rates: [0.50, 0.65, 0.75, 0.85, 0.95]
+  status: TODO
+
+# ---------------------------------------------------------------
+# RQ3: 아키텍처 절제
+# ---------------------------------------------------------------
+RQ3_ablation:
+  description: "컴포넌트별 기여도"
+  runs:
+    - name: comet_full
+      description: "COMET 기본 (baseline for ablation)"
+      status: TODO         # 10-seed 필요
+
+    # Temporal path
+    - name: temporal_transformer
+      temporal_type: transformer
+      status: TODO
+    - name: temporal_conv1d
+      temporal_type: conv1d
+      status: TODO
+    - name: temporal_identity
+      temporal_type: identity
+      status: TODO
+
+    # Codebook
+    - name: no_codebook
+      no_codebook: true
+      status: TODO
+
+    # Input mode
+    - name: ts_input
+      ts_input: true
+      status: IN_PROGRESS  # logs/222200, 222210
+
+# ---------------------------------------------------------------
+# RQ4: 학습 레시피
+# ---------------------------------------------------------------
+RQ4_training:
+  description: "하이퍼파라미터 민감도"
+  runs:
+    - name: entropy_low
+      entropy_reg_weight: 0.05
+      status: TODO
+    - name: entropy_high
+      entropy_reg_weight: 0.2
+      status: TODO
+    - name: stage2_short
+      stage2_max_epochs: 1
+      status: TODO
+    - name: stage2_long
+      stage2_max_epochs: 5
+      status: TODO
+
+# ---------------------------------------------------------------
+# RQ5: 해석 가능성
+# ---------------------------------------------------------------
+RQ5_interpretability:
+  description: "코드북 클러스터 시각화"
+  runs:
+    - name: tsne_solar
+      description: "Q_full t-SNE + codebook entry 할당"
+      status: TODO
+
+# ---------------------------------------------------------------
+# Pilot runs (비공식, 10-seed 전 sanity check)
+# ---------------------------------------------------------------
+pilot:
+  - name: comet_solar_sanity
+    log_dir: comet_solar_K16_s42_20260309_145454
+    seed: 42
+    note: "1-seed sanity check, early stopped epoch 55"
+    ObsMAE: 2.122
+    ObsRMSE: 3.614
+    MissMAE: 2.430
+  - name: ts_input_solar
+    log_dir: comet_solar_K16_s42_20260309_222200
+    seed: 42
+    note: "ts_input ablation, 진행중"
+  - name: ts_input_solar_dup
+    log_dir: comet_solar_K16_s42_20260309_222210
+    seed: 42
+    note: "ts_input 중복 run"
