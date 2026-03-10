@@ -5,7 +5,8 @@
 - **데이터셋 (4종):** Solar(137), METR-LA(207), Traffic(862), ECG5000(140)
 - **평가 프로토콜 (VIDA-Style):** 10-seed 학습 × 100-mask 평가 → Mean/Std 보고
 - **평가 지표:** RevIN 비활성화, 비정규화 원본 공간에서 ObsMAE / ObsRMSE 계산 (null_val=0.0 제외)
-- **기본 설정:** d_model=128, K=16, batch_size=16, missing_rate=0.85, loss=mae
+- **기본 설정:** d_model=128, K=16, batch_size=64, missing_rate=0.85, loss=mae, temporal=conv1d, fp32
+- **주의:** amp_bf16 OFF 통일 (GTX 1080 Ti 호환)
 
 ## 2. RQ1-a: VSF 바운드 비교 (Partial vs Oracle)
 
@@ -15,13 +16,13 @@ MTGNN 백본 기준: Partial(0-fill) vs Oracle(100%) vs COMET
 
 ```bash
 # Oracle (missing_rate=0)
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --missing_rate 0.0
+python scripts/train.py --dataset solar --data_dir ./data --missing_rate 0.0
 
 # Partial (no codebook, 0-fill)
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --no_codebook
+python scripts/train.py --dataset solar --data_dir ./data --no_codebook
 
 # COMET (기본)
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16
+python scripts/train.py --dataset solar --data_dir ./data
 ```
 
 ## 3. RQ1-b: SOTA 베이스라인 비교 (Main Comparison)
@@ -38,7 +39,7 @@ python scripts/train.py --dataset solar --batch_size 16 --amp_bf16
 
 ```bash
 for mr in 0.50 0.65 0.75 0.85 0.95; do
-  python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --missing_rate $mr
+  python scripts/train.py --dataset solar --data_dir ./data --missing_rate $mr
 done
 ```
 
@@ -46,38 +47,38 @@ done
 
 ### w/o embedding input (ts_input)
 ```bash
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --ts_input
+python scripts/train.py --dataset solar --data_dir ./data --ts_input
 ```
 
 ### w/o Codebook
 ```bash
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --no_codebook
+python scripts/train.py --dataset solar --data_dir ./data --no_codebook
 ```
 
-### w/o CI-Mamba (temporal path 교체)
+### Temporal path 비교 (기본=conv1d)
 ```bash
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --temporal_type transformer
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --temporal_type conv1d
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --temporal_type identity
+python scripts/train.py --dataset solar --data_dir ./data --temporal_type mamba
+python scripts/train.py --dataset solar --data_dir ./data --temporal_type transformer
+python scripts/train.py --dataset solar --data_dir ./data --temporal_type identity
 ```
 
 ### Head 교체 (optional)
 ```bash
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --head_type astgcn
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --head_type mstgcn
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --head_type tgcn
+python scripts/train.py --dataset solar --data_dir ./data --head_type astgcn
+python scripts/train.py --dataset solar --data_dir ./data --head_type mstgcn
+python scripts/train.py --dataset solar --data_dir ./data --head_type tgcn
 ```
 
 ## 6. RQ4: 학습 레시피 검증 (Training Strategy)
 
 ```bash
 # 엔트로피 정규화 비교
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --entropy_reg_weight 0.05
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --entropy_reg_weight 0.2
+python scripts/train.py --dataset solar --data_dir ./data --entropy_reg_weight 0.05
+python scripts/train.py --dataset solar --data_dir ./data --entropy_reg_weight 0.2
 
 # Stage 2 안정화 기간
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --stage2_max_epochs 1
-python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --stage2_max_epochs 5
+python scripts/train.py --dataset solar --data_dir ./data --stage2_max_epochs 1
+python scripts/train.py --dataset solar --data_dir ./data --stage2_max_epochs 5
 ```
 
 ## 7. RQ5: 해석 가능성 (Interpretability)
@@ -91,7 +92,7 @@ python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --stage2_max_
 본실험은 seed를 바꿔가며 10회 반복:
 ```bash
 for seed in 42 123 456 789 1024 2048 3072 4096 5120 6144; do
-  python scripts/train.py --dataset solar --batch_size 16 --amp_bf16 --seed $seed
+  python scripts/train.py --dataset solar --data_dir ./data --seed $seed
 done
 ```
 

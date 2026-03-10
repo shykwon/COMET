@@ -13,10 +13,10 @@ COMET (COdebook-augmented Multivariate time-series forecasting with Expertise Tr
 pip install -e .
 pip install causal-conv1d mamba-ssm  # Optional, CUDA 12+
 
-# Train
-python scripts/train.py --dataset solar --data_dir ./data --batch_size 16 --amp_bf16
-python scripts/train.py --dataset solar --data_dir ./data --batch_size 16 --amp_bf16 --ts_input      # ablation: time-series input
-python scripts/train.py --dataset solar --data_dir ./data --batch_size 16 --amp_bf16 --no_codebook   # ablation: no codebook
+# Train (default: conv1d temporal, batch_size=64, fp32)
+python scripts/train.py --dataset solar --data_dir ./data
+python scripts/train.py --dataset solar --data_dir ./data --ts_input      # ablation: time-series input
+python scripts/train.py --dataset solar --data_dir ./data --no_codebook   # ablation: no codebook
 
 # Evaluate (100-mask)
 python scripts/evaluate.py logs/comet_solar_K16_s42_YYYYMMDD_HHMMSS --missing_rate 0.85 --n_samples 100
@@ -32,7 +32,7 @@ No test framework configured. `tests/` exists but is empty.
 ```
 x_full [B, N, T] + obs_mask [B, N]
   → PatchEmbedding          [B, N, L, D]     patch_embedding.py
-  → CI-Mamba (per-variate)   [B, N, L, D]     temporal.py        (Mamba2 or SimplifiedSSM fallback)
+  → CI-Conv1D (per-variate)  [B, N, L, D]     temporal.py        (multi-kernel 1,3,5; default)
   → PatchLevelEncoder        Q_sub [B, D]     encoder.py         (TransformerEncoder + CLS token)
   → Codebook soft lookup     z_ctx, w, conf   codebook.py        (K=16, tau=0.5, EMA + K-Means init)
   → TwoStageDecoder          [B, N, L, D]     decoder.py         (StageA: obs cross-attn, StageB: codebook cross-attn)
