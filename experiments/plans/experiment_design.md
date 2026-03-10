@@ -8,24 +8,36 @@
 - **기본 설정:** d_model=128, K=16, batch_size=64, missing_rate=0.85, loss=mae, temporal=conv1d, fp32
 - **주의:** amp_bf16 OFF 통일 (GTX 1080 Ti 호환)
 
-## 2. RQ1-a: VSF 바운드 비교 (Partial vs Oracle)
+## 2. RQ1: Main Comparison (Table 1 — 4-Row Bound Comparison)
 
-MTGNN 백본 기준: Partial(0-fill) vs Oracle(100%) vs COMET
-- Δ_subset: Partial 대비 향상률
-- Δ_complete: Oracle 대비 향상률 (Oracle 초과 강조)
+4개 행으로 구성하여 **두 가지 기여를 정량적으로 분리**한다.
 
+| Row | 표기명 | 세팅 | 의의 |
+|-----|--------|------|------|
+| 1 | MTGNN (Partial) | 15% 관측 + 85% Zero-fill → 표준 1D MTGNN | VSF 업계 하한선 |
+| 2 | MTGNN (Oracle) | 100% 완벽 데이터 → 표준 1D MTGNN | VSF 업계 상한선 |
+| 3 | COMET w/o Codebook | 15% 관측 → COMET e2e 백본 (Codebook 제거) | **기여 1: e2e 아키텍처** |
+| 4 | **COMET (Ours)** | 15% 관측 → COMET 전체 파이프라인 | **기여 2: + Codebook** |
+
+**스토리라인:**
+- Row 2 → 3: e2e 아키텍처만으로 결측 85% 상황에서도 Oracle 초과 → 기여 1 입증
+- Row 3 → 4: Codebook 추가로 추가 개선 → 기여 2 입증
+- Row 3은 **기여 분해점 (decomposition point)** 역할
+
+**실험 커맨드:**
+- Row 1, 2: 표준 MTGNN — 기존 VSF 논문(VIDA 등) 수치 직접 인용. 직접 실험 불필요. (단, 평가 프로토콜 일치 확인: data split, seq/pred_len, 지표 계산 방식)
+- Row 3:
 ```bash
-# Oracle (missing_rate=0)
-python scripts/train.py --dataset solar --data_dir ./data --missing_rate 0.0
-
-# Partial (no codebook, 0-fill)
 python scripts/train.py --dataset solar --data_dir ./data --no_codebook
-
-# COMET (기본)
+```
+- Row 4:
+```bash
 python scripts/train.py --dataset solar --data_dir ./data
 ```
 
-## 3. RQ1-b: SOTA 베이스라인 비교 (Main Comparison)
+**10-seed 반복** (아래 seed 가이드 참조), 4개 데이터셋 전부 수행.
+
+## 3. RQ1-b: SOTA 베이스라인 비교 (Main Comparison — Extended)
 
 - 통계/ML 보간: MICE, KNNE, TRMF
 - 딥러닝 보간: CSDI, SAITS, SS-GAN
