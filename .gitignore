@@ -8,4 +8,55 @@ build/
 logs/
 /data/
 *.log
+
+# Environment & secrets
 .env
+.env.*
+*.key
+*.pem
+*.secret
+credentials/
+secrets/
+
+# Claude Code
+.claude/
+CLAUDE.md
+.claude.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Experiments — tracked on this branch
+# experiments/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Wandb / experiment tracking
+wandb/
+mlruns/
+*.wandb
+
+# Large files (data는 별도 관리)
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pkl
+*.pickle
+
+# But keep experiment result files
+!experiments/**/*.json
+!experiments/**/*.csv
+!experiments/**/*.yaml
+!experiments/**/*.md
+!experiments/**/*.png
+!experiments/**/*.pdf
