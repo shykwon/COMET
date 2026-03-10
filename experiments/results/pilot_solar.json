@@ -22,14 +22,19 @@
     },
     "ts_input": {
       "log_dir": "comet_solar_K16_s42_20260309_222200",
-      "duplicate_log": "comet_solar_K16_s42_20260309_222210 (무시)",
       "seed": 42,
       "missing_rate": 0.85,
       "ts_input": true,
       "use_codebook": true,
       "temporal": "mamba",
-      "status": "in_progress",
-      "progress": "epoch 33/150, Stage 3, obs=3.020"
+      "status": "done",
+      "test": {
+        "ObsMAE": 2.600,
+        "ObsRMSE": 4.183,
+        "MissMAE": 2.675,
+        "MAE": 2.664,
+        "RMSE": 4.255
+      }
     }
   }
 }
