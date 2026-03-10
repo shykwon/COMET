@@ -1,4 +1,4 @@
-"""Patch-Level Asymmetric Encoder: observed variate patches → system state Q_sub."""
+"""Patch-Level Encoder: observed variate patches → system state Q_sub."""
 
 import torch
 import torch.nn as nn
@@ -7,11 +7,11 @@ from typing import Tuple, Optional
 
 class PatchLevelEncoder(nn.Module):
     """
-    Patch-level Asymmetric Encoder: compress observed variate patches → Q_sub.
+    Patch-level Encoder: compress observed variate patches → Q_sub.
 
     Architecture:
-        1. Flatten observed variate patches: [B, N', L, D] → [B, N'*L, D]
-        2. Add Variable ID Embedding (broadcast over L patches)
+        1. Add Variable ID Embedding (broadcast over L patches)
+        2. Flatten observed variate patches: [B, N', L, D] → [B, N'*L, D]
         3. Prepend [CLS] token
         4. Self-Attention (TransformerEncoder)
         5. CLS output = Q_sub (system state summary)
