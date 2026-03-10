@@ -12,7 +12,7 @@ model:
   adaptive_alpha: true
 
   temporal:
-    type: mamba          # mamba | transformer | conv1d | identity
+    type: conv1d         # mamba | transformer | conv1d | identity
     n_layers: 1
     d_state: 16          # mamba only
     d_conv: 4            # mamba only
