@@ -55,6 +55,8 @@ def parse_args():
     p.add_argument("--loss_fn", type=str, choices=["mse", "mae", "huber"])
     p.add_argument("--ts_input", action="store_true",
                    help="Ablation: feed time series to head instead of embeddings")
+    p.add_argument("--head_type", type=str, choices=["mtgnn", "astgcn", "mstgcn", "tgcn"],
+                   help="Forecast head type")
     p.add_argument("--log_dir", type=str)
     p.add_argument("--n_encoder_layers", type=int)
     p.add_argument("--entropy_reg_weight", type=float)
@@ -65,6 +67,8 @@ def parse_args():
     p.add_argument("--restore_alpha", type=float)
     p.add_argument("--disable_stage3", action="store_true")
     p.add_argument("--no_codebook", action="store_true")
+    p.add_argument("--temporal_type", type=str, choices=["mamba", "transformer", "conv1d", "identity"],
+                   help="Ablation: temporal path variant")
     p.add_argument("--null_val", type=float)
     p.add_argument("--amp_bf16", action="store_true")
     p.add_argument("--resume", type=str)
@@ -115,6 +119,10 @@ def load_config(args):
         cfg["training"]["null_val"] = args.null_val
     if args.ts_input:
         cfg["model"]["ts_input"] = True
+    if args.head_type:
+        cfg["model"]["head_type"] = args.head_type
+    if args.temporal_type:
+        cfg["model"]["temporal"]["type"] = args.temporal_type
     if args.debug:
         cfg["training"]["epochs"] = 3
         cfg["training"]["stage1_epochs"] = 1
@@ -414,6 +422,8 @@ def main():
 
     cb_cfg = model_cfg["codebook"]
     ts_input = model_cfg.get("ts_input", False)
+    head_type = model_cfg.get("head_type", "mtgnn")
+    temporal_type = model_cfg.get("temporal", {}).get("type", "mamba")
     model = COMET(
         num_variates=num_variates,
         seq_len=data_cfg["seq_len"],
@@ -432,11 +442,13 @@ def main():
         restore_alpha=model_cfg.get("restore_alpha", 0.1),
         adaptive_alpha=model_cfg.get("adaptive_alpha", True),
         ts_input=ts_input,
+        head_type=head_type,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"\nModel: COMET ({n_params:,} params, {n_params/1e6:.2f}M)")
-    print(f"  Codebook K={cb_cfg['K']}, ts_input={ts_input}, use_codebook={model_cfg.get('use_codebook', True)}")
+    print(f"  head={head_type}, temporal={temporal_type}, Codebook K={cb_cfg['K']}, ts_input={ts_input}, "
+          f"use_codebook={model_cfg.get('use_codebook', True)}")
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=train_cfg["learning_rate"],
                                   weight_decay=train_cfg["weight_decay"])
@@ -466,7 +478,7 @@ def main():
     disable_ema = train_cfg.get("disable_ema", False)
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_s{train_cfg['seed']}_{timestamp}"
+    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}_s{train_cfg['seed']}_{timestamp}"
     log_dir = Path(cfg["logging"]["log_dir"]) / exp_name
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "config.yaml", "w") as f:

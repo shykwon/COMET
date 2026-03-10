@@ -21,11 +21,19 @@ import torch.nn as nn
 from typing import Dict, Any, Optional, Tuple
 
 from .patch_embedding import PatchEmbedding
-from .temporal import TemporalPath
+from .temporal import create_temporal_path
 from .codebook import Codebook
 from .encoder import PatchLevelEncoder
 from .decoder import TwoStageDecoder
 from .forecast_head import MTGNNHead
+from .stgcn_heads import ASTGCNHead, MSTGCNHead, TGCNHead
+
+HEAD_CLASSES = {
+    'mtgnn': MTGNNHead,
+    'astgcn': ASTGCNHead,
+    'mstgcn': MSTGCNHead,
+    'tgcn': TGCNHead,
+}
 
 
 class COMET(nn.Module):
@@ -49,6 +57,7 @@ class COMET(nn.Module):
         restore_alpha: float = 0.1,
         adaptive_alpha: bool = True,
         ts_input: bool = False,
+        head_type: str = 'mtgnn',
     ):
         super().__init__()
         self.num_variates = num_variates
@@ -67,14 +76,18 @@ class COMET(nn.Module):
         num_patches = self.patch_embedding.get_num_patches(seq_len)
         self.num_patches = num_patches
 
-        # ② CI-Mamba Temporal Path
+        # ② Temporal Path (mamba / transformer / conv1d / identity)
         temporal_config = temporal_config or {}
-        self.temporal_path = TemporalPath(
+        temporal_type = temporal_config.get("type", "mamba")
+        self.temporal_path = create_temporal_path(
+            temporal_type=temporal_type,
             d_model=d_model,
             n_layers=temporal_config.get("n_layers", 1),
             d_state=temporal_config.get("d_state", 16),
             d_conv=temporal_config.get("d_conv", 4),
             expand=temporal_config.get("expand", 2),
+            n_heads=temporal_config.get("n_heads", 4),
+            kernels=tuple(temporal_config.get("kernels", [1, 3, 5])),
             dropout=dropout,
         )
 
@@ -101,20 +114,21 @@ class COMET(nn.Module):
         )
 
         # ⑥ Forecast Head
+        HeadClass = HEAD_CLASSES[head_type]
         if ts_input:
             # Ablation: project patch embeddings → time series, head receives [B,N,T]
             self.patch_to_ts = nn.Sequential(
                 nn.Linear(d_model, d_model * 2), nn.GELU(),
                 nn.Linear(d_model * 2, seq_len),
             )
-            self.head = MTGNNHead(
+            self.head = HeadClass(
                 num_variates=num_variates, d_model=d_model,
                 pred_len=pred_len, seq_len=seq_len,
                 dropout=0.3, ts_input=True,
             )
         else:
             # Default: head receives patch embeddings [B,N,L,D]
-            self.head = MTGNNHead(
+            self.head = HeadClass(
                 num_variates=num_variates, d_model=d_model,
                 pred_len=pred_len, seq_len=num_patches,
                 dropout=0.3, ts_input=False,
