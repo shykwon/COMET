@@ -14,6 +14,7 @@ MISSING_RATE=0.85
 BATCH_SIZE=64
 DATASET_FILTER=""
 PATTERN_FILTER=""
+CPU_FLAG=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -22,6 +23,7 @@ while [[ $# -gt 0 ]]; do
     --n_samples) N_SAMPLES="$2"; shift 2 ;;
     --missing_rate) MISSING_RATE="$2"; shift 2 ;;
     --batch_size) BATCH_SIZE="$2"; shift 2 ;;
+    --cpu) CPU_FLAG="--cpu"; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -76,7 +78,7 @@ for d in "${DIRS[@]}"; do
   python3 scripts/evaluate.py "$d" \
     --missing_rate $MISSING_RATE \
     --n_samples $N_SAMPLES \
-    --batch_size $BATCH_SIZE
+    --batch_size $BATCH_SIZE $CPU_FLAG
 
   if [ $? -eq 0 ]; then
     DONE=$((DONE + 1))

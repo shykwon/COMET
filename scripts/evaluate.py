@@ -84,6 +84,7 @@ def main():
     parser.add_argument("--missing_rate", type=float, default=0.85)
     parser.add_argument("--n_samples", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--cpu", action="store_true", help="Force CPU evaluation")
     args = parser.parse_args()
 
     exp_dir = Path(args.exp_dir)
@@ -96,7 +97,7 @@ def main():
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu") if args.cpu else torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     print(f"Experiment: {exp_dir}")
     print(f"Missing rate: {args.missing_rate}, N samples: {args.n_samples}")

@@ -66,7 +66,7 @@ echo "============================================================"
 echo "ETTh1 [2/3] 100-mask Evaluation"
 echo "============================================================"
 
-bash scripts/eval_all.sh --dataset ETTh1
+bash scripts/eval_all.sh --dataset ETTh1 --cpu
 
 echo ""
 echo "============================================================"
