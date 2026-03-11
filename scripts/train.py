@@ -478,7 +478,10 @@ def main():
     disable_ema = train_cfg.get("disable_ema", False)
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}_s{train_cfg['seed']}_{timestamp}"
+    use_cb = model_cfg.get("use_codebook", True)
+    cb_tag = "" if use_cb else "_nocb"
+    head_tag = f"_{head_type}" if head_type != "mtgnn" else ""
+    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}_s{train_cfg['seed']}_{timestamp}"
     log_dir = Path(cfg["logging"]["log_dir"]) / exp_name
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "config.yaml", "w") as f:
