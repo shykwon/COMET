@@ -1,7 +1,7 @@
 #!/bin/bash
 # ETTm1 Main Experiment: 2 conditions × 4 heads × 10 seeds = 80 runs
 # N=7 variates, 15-min, 69680 timesteps
-# K=8 (N=7에 적합), batch_size=64, seq_len=96
+# K=8 (N=7에 적합), batch_size=256, seq_len=12
 
 export PYTORCH_NVML_BASED_CUDA_CHECK=0
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
@@ -11,7 +11,7 @@ DATASET="ETTm1"
 DATA_DIR="./data/raw"
 K=8
 BS=256
-SEQ_LEN=96
+SEQ_LEN=12
 PRED_LEN=12
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 HEADS=("mtgnn" "astgcn" "mstgcn" "tgcn")

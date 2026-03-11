@@ -10,7 +10,7 @@ DATASET="solar"
 DATA_DIR="./data/raw"
 K=16
 BS=32
-SEQ_LEN=96
+SEQ_LEN=12
 PRED_LEN=12
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
 
