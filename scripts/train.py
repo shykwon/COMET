@@ -262,8 +262,8 @@ def train_one_epoch(model, loader, optimizer, scheduler, device, state,
         model.codebook._revive_count = 0
 
     if scaler is not None:
-        sc_std = torch.tensor(scaler.std.squeeze(), dtype=torch.float32, device=device)
-        sc_mean = torch.tensor(scaler.mean.squeeze(), dtype=torch.float32, device=device)
+        sc_std = torch.tensor(scaler.std.flatten(), dtype=torch.float32, device=device)
+        sc_mean = torch.tensor(scaler.mean.flatten(), dtype=torch.float32, device=device)
     else:
         sc_std = sc_mean = None
 
