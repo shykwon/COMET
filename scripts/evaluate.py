@@ -61,7 +61,7 @@ def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variate
 
     abs_err = np.abs(preds_inv - trues_inv) * valid
     sq_err = (preds_inv - trues_inv) ** 2 * valid
-    count = valid.sum()
+    count = max(valid.sum(), 1)
 
     obs_mae = float(abs_err.sum() / count)
     obs_rmse = float(np.sqrt(sq_err.sum() / count))
