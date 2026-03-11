@@ -1,14 +1,16 @@
 #!/bin/bash
-# Solar Main Experiment: 2 conditions × 4 heads × 10 seeds = 80 runs
-# N=137 variates, 52560 timesteps
-# Target: Titan X 12GB (fp32, no bf16)
+# ETTh1 Main Experiment: 2 conditions × 4 heads × 10 seeds = 80 runs
+# N=7 variates, hourly, 17420 timesteps
+# K=8 (N=7에 적합), batch_size=64, seq_len=96
 
+export PYTORCH_NVML_BASED_CUDA_CHECK=0
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
 export PYTHONUNBUFFERED=1
 
-DATASET="solar"
+DATASET="ETTh1"
 DATA_DIR="./data/raw"
-K=16
-BS=32
+K=8
+BS=256
 SEQ_LEN=96
 PRED_LEN=12
 SEEDS=(0 1 2 3 4 5 6 7 8 9)
@@ -18,7 +20,7 @@ TOTAL=$((2 * ${#HEADS[@]} * ${#SEEDS[@]}))
 COUNT=0
 
 echo "============================================================"
-echo "Solar Main Experiment: $TOTAL runs"
+echo "ETTh1 Main Experiment: $TOTAL runs"
 echo "K=$K, BS=$BS, seq_len=$SEQ_LEN, pred_len=$PRED_LEN"
 echo "Seeds: ${SEEDS[*]}"
 echo "Heads: ${HEADS[*]}"
@@ -34,7 +36,7 @@ for head in "${HEADS[@]}"; do
       --dataset $DATASET --data_dir $DATA_DIR \
       --codebook_K $K --batch_size $BS --seed $seed \
       --seq_len $SEQ_LEN --pred_len $PRED_LEN \
-      --head_type $head
+      --head_type $head --amp_bf16
 
     # COMET w/o Codebook
     COUNT=$((COUNT + 1))
@@ -44,7 +46,7 @@ for head in "${HEADS[@]}"; do
       --dataset $DATASET --data_dir $DATA_DIR \
       --codebook_K $K --batch_size $BS --seed $seed \
       --seq_len $SEQ_LEN --pred_len $PRED_LEN \
-      --head_type $head --no_codebook
+      --head_type $head --no_codebook --amp_bf16
   done
 done
 

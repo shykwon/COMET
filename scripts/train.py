@@ -526,6 +526,20 @@ def main():
             daytime_buffer.clear()
             curriculum.mark_codebook_initialized()
 
+            # Pre-warm GPU memory for Stage 2 teacher forward to avoid
+            # NVML assertion in CUDACachingAllocator on MIG partitions.
+            # Must simulate full Stage 2 memory footprint: forward + forward_full + backward.
+            with torch.no_grad():
+                wb = next(iter(train_loader))
+                xw, yw = wb[0].to(device), wb[1].to(device)
+                B_w, N_w, _ = xw.shape
+                mask_w = apply_masking(N_w, 0.25, device, B_w)
+                y_hat_w, Q_w, w_w, _ = model(xw, mask_w)
+                _, Q_f, w_f = model.forward_full(xw)
+                del xw, yw, mask_w, y_hat_w, Q_w, w_w, Q_f, w_f, wb
+            # Do NOT call empty_cache() — keep memory mapped for Stage 2
+            print("  [Memory] Pre-warmed Stage 2 memory footprint")
+
         collect = state.stage == 1 and not state.codebook_initialized
 
         print(f"\nEpoch {epoch}/{train_cfg['epochs']} | Stage {state.stage} | "
