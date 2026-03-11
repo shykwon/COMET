@@ -57,6 +57,43 @@ experiments/
 "test": { "ObsMAE": 2.122, "ObsRMSE": 3.614 }
 ```
 
+## 실험 파이프라인
+
+### 1단계: 학습 (10-seed)
+```bash
+# 단일 실행
+python scripts/train.py --dataset solar --data_dir ./data/raw --seed 0
+
+# 일괄 실행 (스크립트)
+bash scripts/run_etth1_main.sh     # ETTh1 80 runs
+bash scripts/run_ettm1_main.sh     # ETTm1 80 runs
+bash scripts/run_solar_main.sh     # Solar 80 runs (1-GPU)
+bash scripts/run_solar_3gpu.sh     # Solar 80 runs (3-GPU 병렬)
+bash scripts/run_traffic_main.sh   # Traffic 80 runs
+```
+- train.py 최종 평가는 1-mask (best model 선택용)
+- best_model.pt가 logs/<exp_dir>/에 저장됨
+
+### 2단계: 100-mask 정식 평가 (논문 보고용)
+```bash
+# 단일 실험 평가
+python scripts/evaluate.py logs/<exp_dir> --missing_rate 0.85 --n_samples 100
+
+# 일괄 평가 (완료된 모든 실험)
+bash scripts/eval_all.sh
+
+# 필터링 옵션
+bash scripts/eval_all.sh --dataset ETTh1          # 데이터셋별
+bash scripts/eval_all.sh --pattern "K16.*mtgnn"   # 패턴 매칭
+bash scripts/eval_all.sh --n_samples 50            # 샘플 수 변경
+```
+- 이미 평가된 실험은 자동 스킵
+- 결과: logs/<exp_dir>/eval_100samples_mr0.85.json
+
+### 3단계: 결과 정리
+- logs/ 내 eval json → experiments/results/<RQ>_<dataset>.json으로 정제
+- experiments/ 규칙에 따라 mean/std 보고
+
 ## logs/ vs experiments/ 구분
 
 | 항목 | logs/ (gitignore) | experiments/ (git 추적) |
