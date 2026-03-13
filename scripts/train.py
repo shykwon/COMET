@@ -481,7 +481,8 @@ def main():
     use_cb = model_cfg.get("use_codebook", True)
     cb_tag = "" if use_cb else "_nocb"
     head_tag = f"_{head_type}" if head_type != "mtgnn" else ""
-    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}_s{train_cfg['seed']}_{timestamp}"
+    ra_tag = "_ra0" if model_cfg.get("restore_alpha", 0.1) == 0 else ""
+    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}{ra_tag}_s{train_cfg['seed']}_{timestamp}"
     log_dir = Path(cfg["logging"]["log_dir"]) / exp_name
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "config.yaml", "w") as f:
