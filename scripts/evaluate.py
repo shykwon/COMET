@@ -61,7 +61,7 @@ def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variate
 
     abs_err = np.abs(preds_inv - trues_inv) * valid
     sq_err = (preds_inv - trues_inv) ** 2 * valid
-    count = valid.sum()
+    count = max(valid.sum(), 1)
 
     obs_mae = float(abs_err.sum() / count)
     obs_rmse = float(np.sqrt(sq_err.sum() / count))
@@ -84,6 +84,7 @@ def main():
     parser.add_argument("--missing_rate", type=float, default=0.85)
     parser.add_argument("--n_samples", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--cpu", action="store_true", help="Force CPU evaluation")
     args = parser.parse_args()
 
     exp_dir = Path(args.exp_dir)
@@ -96,7 +97,7 @@ def main():
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu") if args.cpu else torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     print(f"Experiment: {exp_dir}")
     print(f"Missing rate: {args.missing_rate}, N samples: {args.n_samples}")

@@ -233,8 +233,8 @@ class COMET(nn.Module):
         else:
             head_input = E_restored  # [B, N, L, D]
 
-        if self.use_codebook:
-            if self.adaptive_alpha and self.restore_alpha > 0:
+        if self.use_codebook and self.restore_alpha > 0:
+            if self.adaptive_alpha:
                 alpha = self.restore_alpha + (1 - self.restore_alpha) * confidence
             else:
                 alpha = self.restore_alpha

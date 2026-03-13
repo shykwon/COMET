@@ -481,7 +481,8 @@ def main():
     use_cb = model_cfg.get("use_codebook", True)
     cb_tag = "" if use_cb else "_nocb"
     head_tag = f"_{head_type}" if head_type != "mtgnn" else ""
-    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}_s{train_cfg['seed']}_{timestamp}"
+    ra_tag = "_ra0" if model_cfg.get("restore_alpha", 0.1) == 0 else ""
+    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}{ra_tag}_s{train_cfg['seed']}_{timestamp}"
     log_dir = Path(cfg["logging"]["log_dir"]) / exp_name
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "config.yaml", "w") as f:
@@ -528,6 +529,20 @@ def main():
             q_buffer.clear()
             daytime_buffer.clear()
             curriculum.mark_codebook_initialized()
+
+            # Pre-warm GPU memory for Stage 2 teacher forward to avoid
+            # NVML assertion in CUDACachingAllocator on MIG partitions.
+            # Must simulate full Stage 2 memory footprint: forward + forward_full + backward.
+            with torch.no_grad():
+                wb = next(iter(train_loader))
+                xw, yw = wb[0].to(device), wb[1].to(device)
+                B_w, N_w, _ = xw.shape
+                mask_w = apply_masking(N_w, 0.25, device, B_w)
+                y_hat_w, Q_w, w_w, _ = model(xw, mask_w)
+                _, Q_f, w_f = model.forward_full(xw)
+                del xw, yw, mask_w, y_hat_w, Q_w, w_w, Q_f, w_f, wb
+            # Do NOT call empty_cache() — keep memory mapped for Stage 2
+            print("  [Memory] Pre-warmed Stage 2 memory footprint")
 
         collect = state.stage == 1 and not state.codebook_initialized
 
