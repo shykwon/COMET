@@ -86,7 +86,7 @@ class TwoStageDecoder(nn.Module):
         miss_indices: torch.Tensor,
         obs_padding_mask: Optional[torch.Tensor] = None,
         miss_padding_mask: Optional[torch.Tensor] = None,
-        z_ctx: Optional[torch.Tensor] = None,
+        w_sub: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -97,7 +97,9 @@ class TwoStageDecoder(nn.Module):
             miss_indices:       Missing variate indices [B, M_max].
             obs_padding_mask:   [B, N'_max] bool, True = padded.
             miss_padding_mask:  [B, M_max] bool, True = padded.
-            z_ctx:              Codebook context vector [B, D] (unused, API compat).
+            w_sub:              Codebook attention weights [B, K] from soft lookup.
+                                When provided, gates C_expanded so that cross-attention
+                                sees w_sub-scaled codebook entries.
 
         Returns:
             E_restored: Restored patch embeddings [B, N, L, D].
@@ -117,7 +119,12 @@ class TwoStageDecoder(nn.Module):
         _no_obs_pad = obs_padding_mask is None or not obs_padding_mask.any().item()
         _no_miss_pad = miss_padding_mask is None or not miss_padding_mask.any().item()
 
-        C_expanded = codebook_C.unsqueeze(0).expand(B, -1, -1)
+        C_expanded = codebook_C.unsqueeze(0).expand(B, -1, -1)  # [B, K, D]
+
+        # Codebook gating: scale entries by w_sub so cross-attention
+        # focuses on the codebook entries that Q_sub selected.
+        if w_sub is not None:
+            C_expanded = w_sub.unsqueeze(-1) * C_expanded  # [B, K, D]
 
         # Fast path: all variates observed
         if N_prime_max == N and M_max == 0 and _no_obs_pad:

@@ -5,7 +5,7 @@ End-to-end architecture:
   1. PatchEmbedding: (B, N, T) → (B, N, L, D)
   2. CI-Mamba temporal encoding (per-variate independent)
   3. PatchLevelEncoder: observed variate patches → system state Q_sub + enriched tokens
-  4. Codebook soft lookup: Q_sub → normal-state context z_ctx
+  4. Codebook soft lookup: Q_sub → weights w, confidence
   5. TwoStageDecoder: missing variate patches restored via obs cross-attn + codebook
   6. MTGNN forecast head: (B, N, L, D) → (B, N, pred_len)
 
@@ -203,7 +203,7 @@ class COMET(nn.Module):
 
         # ④ Codebook
         if self.use_codebook:
-            z_ctx, w_sub, confidence = self.codebook.soft_lookup(Q_sub, obs_ratio=obs_ratio)
+            w_sub, confidence = self.codebook.soft_lookup(Q_sub, obs_ratio=obs_ratio)
 
             # ⑤ TwoStageDecoder
             E_restored = self.decoder(
@@ -214,7 +214,7 @@ class COMET(nn.Module):
                 miss_indices=miss_idx,
                 obs_padding_mask=obs_pad,
                 miss_padding_mask=miss_pad,
-                z_ctx=z_ctx,
+                w_sub=w_sub,
             )  # [B, N, L, D]
         else:
             K = self.codebook.C.shape[0]
@@ -267,7 +267,7 @@ class COMET(nn.Module):
 
         # ④ Codebook
         if self.use_codebook:
-            _, w_full, _ = self.codebook.soft_lookup(Q_full, obs_ratio=torch.ones(B, device=device))
+            w_full, _ = self.codebook.soft_lookup(Q_full, obs_ratio=torch.ones(B, device=device))
         else:
             K = self.codebook.C.shape[0]
             w_full = torch.ones(B, K, device=device, dtype=h_patched.dtype) / K
