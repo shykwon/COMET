@@ -29,18 +29,16 @@ class Codebook(nn.Module):
         self.register_buffer("usage_ema", torch.ones(K) / K)
 
     def soft_lookup(self, Q: torch.Tensor,
-                    obs_ratio: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                    obs_ratio: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Returns:
-            z_ctx: Weighted context vector [B, d].
             w: Attention weights over codebook [B, K].
             confidence: Lookup confidence [B].
         """
         dist_sq = torch.cdist(Q.unsqueeze(0), self.C.unsqueeze(0)).squeeze(0).pow(2)
         w = F.softmax(-dist_sq / self.tau, dim=-1)
-        z_ctx = torch.matmul(w, self.C)
         confidence = w.max(dim=-1).values * obs_ratio
-        return z_ctx, w, confidence
+        return w, confidence
 
     def perplexity(self, w: torch.Tensor) -> torch.Tensor:
         avg_w = w.detach().mean(dim=0)
