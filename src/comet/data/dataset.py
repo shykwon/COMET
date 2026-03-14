@@ -87,10 +87,12 @@ DATASETS = {
     "metr-la":       ("metr-la.h5",        _load_h5),
     "pems-bay":      ("pems-bay.h5",       _load_h5),
     "weather":       ("weather.csv",       _load_csv),
+    "ecg5000":       ("ecg5000.txt",       _load_txt),
 }
 
 SCALE_FACTORS = {
     "traffic": 1000,
+    "ecg5000": 10,
 }
 
 
