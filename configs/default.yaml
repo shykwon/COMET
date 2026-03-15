@@ -8,8 +8,6 @@ model:
   use_codebook: true
   ts_input: false
   head_type: mtgnn         # mtgnn | astgcn | mstgcn | tgcn
-  restore_alpha: 0.1
-  adaptive_alpha: true
 
   temporal:
     type: conv1d         # mamba | transformer | conv1d | identity

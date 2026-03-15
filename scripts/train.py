@@ -64,7 +64,6 @@ def parse_args():
     p.add_argument("--stage1_epochs", type=int)
     p.add_argument("--stage2_min_epochs", type=int)
     p.add_argument("--stage2_max_epochs", type=int)
-    p.add_argument("--restore_alpha", type=float, help="(deprecated, ignored)")
     p.add_argument("--disable_stage3", action="store_true")
     p.add_argument("--no_codebook", action="store_true")
     p.add_argument("--temporal_type", type=str, choices=["mamba", "transformer", "conv1d", "identity"],
@@ -103,7 +102,6 @@ def load_config(args):
         "stage1_epochs": ("training", "stage1_epochs"),
         "stage2_min_epochs": ("training", "stage2_min_epochs"),
         "stage2_max_epochs": ("training", "stage2_max_epochs"),
-        "restore_alpha": ("model", "restore_alpha"),
     }
     for arg_name, (section, key) in overrides.items():
         val = getattr(args, arg_name, None)
