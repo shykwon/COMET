@@ -77,8 +77,6 @@ class MTGNNHead(nn.Module):
 
     Default: receives patch embeddings [B, N, L, D] (end-to-end, in_dim=d_model).
     Ablation (ts_input=True): receives time series [B, N, T] (in_dim=1).
-
-    Supports confidence-weighted graph masking via restore_alpha for restored variates.
     """
 
     def __init__(self, num_variates: int, d_model: int = 128,
@@ -143,13 +141,15 @@ class MTGNNHead(nn.Module):
         self.end_conv_1 = nn.Conv1d(skip_channels, end_channels, kernel_size=1)
         self.end_conv_2 = nn.Conv1d(end_channels, pred_len, kernel_size=1)
 
-    def forward(self, x: torch.Tensor, obs_mask: torch.Tensor = None,
-                restore_alpha=None) -> torch.Tensor:
+    def get_adj(self) -> torch.Tensor:
+        """Extract learned adjacency matrix [N, N] for use by other heads."""
+        with torch.no_grad():
+            return self.gc().detach().cpu().numpy()
+
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         """
         Args:
             x: [B, N, L, D] patch embeddings (default) or [B, N, T] time series (ts_input).
-            obs_mask: [B, N] boolean, True=observed.
-            restore_alpha: Confidence weight for restored variates in graph conv.
         """
         if self.ts_input:
             B, N, T = x.shape
@@ -167,23 +167,6 @@ class MTGNNHead(nn.Module):
         h = self.start_conv(h)
 
         adp = self.gc()
-
-        if obs_mask is not None and not obs_mask.all():
-            miss = ~obs_mask
-            if isinstance(restore_alpha, torch.Tensor) or (restore_alpha is not None and restore_alpha > 0):
-                trust = torch.ones(B, N, device=adp.device, dtype=adp.dtype)
-                if isinstance(restore_alpha, torch.Tensor):
-                    alpha_exp = restore_alpha.unsqueeze(1).expand(B, N).to(trust.dtype)
-                    trust[miss] = alpha_exp[miss]
-                else:
-                    trust[miss] = restore_alpha
-                adp_b = adp.unsqueeze(0).expand(B, -1, -1) * trust.unsqueeze(-1)
-            else:
-                adp_b = adp.unsqueeze(0).expand(B, -1, -1).clone()
-                adp_b[miss.unsqueeze(2).expand_as(adp_b)] = 0
-                adp_b[miss.unsqueeze(1).expand_as(adp_b)] = 0
-            adp = (adp_b / adp_b.sum(-1, keepdim=True).clamp(min=1e-8)).mean(0)
-
         adp_t = adp.T
 
         for i in range(self.n_layers):

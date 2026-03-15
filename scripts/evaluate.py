@@ -35,7 +35,7 @@ def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variate
             x, y = batch[0].to(device), batch[1].to(device)
             B = x.shape[0]
             obs_mask = fixed_mask.unsqueeze(0).expand(B, -1)
-            y_hat, _, _, _ = model(x, obs_mask)
+            y_hat, _, _ = model(x, obs_mask)
             preds_list.append(y_hat.cpu().numpy())
             trues_list.append(y.cpu().numpy())
             if len(batch) > 2:
@@ -61,19 +61,21 @@ def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variate
 
     abs_err = np.abs(preds_inv - trues_inv) * valid
     sq_err = (preds_inv - trues_inv) ** 2 * valid
-    count = max(valid.sum(), 1)
 
-    obs_mae = float(abs_err.sum() / count)
-    obs_rmse = float(np.sqrt(sq_err.sum() / count))
-
+    # Per-horizon metrics (Chauhan/VIDA compatible: per-horizon then average)
     per_horizon = {}
+    h_maes, h_rmses = [], []
     for t in range(shape[2]):
-        h_count = valid[:, :, t].sum()
-        if h_count > 0:
-            per_horizon[t] = {
-                "MAE": float(abs_err[:, :, t].sum() / h_count),
-                "RMSE": float(np.sqrt(sq_err[:, :, t].sum() / h_count)),
-            }
+        h_count = max(valid[:, :, t].sum(), 1)
+        h_mae = float(abs_err[:, :, t].sum() / h_count)
+        h_rmse = float(np.sqrt(sq_err[:, :, t].sum() / h_count))
+        per_horizon[t] = {"MAE": h_mae, "RMSE": h_rmse}
+        h_maes.append(h_mae)
+        h_rmses.append(h_rmse)
+
+    # Headline: mean of per-horizon metrics (matches Chauhan/VIDA protocol)
+    obs_mae = float(np.mean(h_maes))
+    obs_rmse = float(np.mean(h_rmses))
 
     return {"ObsMAE": obs_mae, "ObsRMSE": obs_rmse, "per_horizon": per_horizon}
 
@@ -129,8 +131,6 @@ def main():
         dropout=cfg["model"]["dropout"],
         temporal_config=cfg["model"].get("temporal"),
         use_codebook=cfg["model"].get("use_codebook", True),
-        restore_alpha=cfg["model"].get("restore_alpha", 0.1),
-        adaptive_alpha=cfg["model"].get("adaptive_alpha", True),
         ts_input=cfg["model"].get("ts_input", False),
         head_type=cfg["model"].get("head_type", "mtgnn"),
     ).to(device)

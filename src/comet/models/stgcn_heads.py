@@ -21,19 +21,41 @@ import torch.nn.functional as F
 # Chebyshev Utilities (shared by ASTGCN and MSTGCN)
 # ---------------------------------------------------------------------------
 
-def _cheb_polynomials_from_identity(N: int, K: int):
-    """Chebyshev polynomials from identity adjacency matrix.
+def _scaled_laplacian(adj: np.ndarray) -> np.ndarray:
+    """Compute scaled Laplacian from adjacency matrix."""
+    N = adj.shape[0]
+    d = adj.sum(axis=1)
+    d_inv_sqrt = np.where(d > 0, np.power(d, -0.5), 0.0)
+    D_inv_sqrt = np.diag(d_inv_sqrt)
+    L = np.eye(N) - D_inv_sqrt @ adj @ D_inv_sqrt
+    lambda_max = np.real(np.linalg.eigvalsh(L)).max()
+    if lambda_max > 0:
+        L_tilde = 2.0 * L / lambda_max - np.eye(N)
+    else:
+        L_tilde = -np.eye(N)
+    return L_tilde.astype(np.float32)
 
-    Identity adj -> D = I, L = 0 -> scaled_Laplacian = -I.
-    Recurrence: T_0 = I, T_1 = -I, T_k = 2(-I)T_{k-1} - T_{k-2}.
-    """
-    L_tilde = -np.eye(N, dtype=np.float32)
+
+def _cheb_polynomials(L_tilde: np.ndarray, K: int):
+    """Chebyshev polynomials from scaled Laplacian."""
+    N = L_tilde.shape[0]
     polys = [np.eye(N, dtype=np.float32)]
     if K > 1:
         polys.append(L_tilde.copy())
     for i in range(2, K):
         polys.append(2 * L_tilde @ polys[i - 1] - polys[i - 2])
     return polys
+
+
+def _cheb_polynomials_from_adj(adj: np.ndarray, K: int):
+    """Chebyshev polynomials from arbitrary adjacency matrix."""
+    L_tilde = _scaled_laplacian(adj)
+    return _cheb_polynomials(L_tilde, K)
+
+
+def _cheb_polynomials_from_identity(N: int, K: int):
+    """Chebyshev polynomials from identity adjacency matrix (fallback)."""
+    return _cheb_polynomials_from_adj(np.eye(N, dtype=np.float32), K)
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +267,7 @@ class ASTGCNHead(nn.Module):
 
     Default: receives [B, N, L, D] patch embeddings (in_channels=d_model).
     Ablation (ts_input=True): receives [B, N, T] time series (in_channels=1).
-    Uses identity adjacency matrix (graph conv = per-node operation).
+    Accepts external adjacency matrix; falls back to identity if not provided.
     """
 
     def __init__(self, num_variates: int, d_model: int = 128,
@@ -253,13 +275,16 @@ class ASTGCNHead(nn.Module):
                  ts_input: bool = False,
                  nb_block: int = 2, K: int = 3,
                  nb_chev_filter: int = 64, nb_time_filter: int = 64,
-                 time_strides: int = 1, **kwargs):
+                 time_strides: int = 1, adj: np.ndarray = None, **kwargs):
         super().__init__()
         self.ts_input = ts_input
         in_channels = 1 if ts_input else d_model
 
-        # Pre-compute Chebyshev polynomials from identity adjacency
-        polys_np = _cheb_polynomials_from_identity(num_variates, K)
+        # Pre-compute Chebyshev polynomials
+        if adj is not None:
+            polys_np = _cheb_polynomials_from_adj(adj, K)
+        else:
+            polys_np = _cheb_polynomials_from_identity(num_variates, K)
         for i, p in enumerate(polys_np):
             self.register_buffer(f'_cheb_{i}', torch.from_numpy(p))
         self._K = K
@@ -289,12 +314,11 @@ class ASTGCNHead(nn.Module):
         return [getattr(self, f'_cheb_{i}') for i in range(self._K)]
 
     def forward(self, x: torch.Tensor,
-                obs_mask=None, restore_alpha=None) -> torch.Tensor:
+                **kwargs) -> torch.Tensor:
         """
         Args:
             x: [B, N, L, D] (default) or [B, N, T] (ts_input).
             obs_mask: Ignored (identity adjacency).
-            restore_alpha: Ignored.
         Returns:
             [B, N, pred_len].
         """
@@ -323,12 +347,15 @@ class MSTGCNHead(nn.Module):
                  ts_input: bool = False,
                  nb_block: int = 2, K: int = 3,
                  nb_chev_filter: int = 64, nb_time_filter: int = 64,
-                 time_strides: int = 1, **kwargs):
+                 time_strides: int = 1, adj: np.ndarray = None, **kwargs):
         super().__init__()
         self.ts_input = ts_input
         in_channels = 1 if ts_input else d_model
 
-        polys_np = _cheb_polynomials_from_identity(num_variates, K)
+        if adj is not None:
+            polys_np = _cheb_polynomials_from_adj(adj, K)
+        else:
+            polys_np = _cheb_polynomials_from_identity(num_variates, K)
         for i, p in enumerate(polys_np):
             self.register_buffer(f'_cheb_{i}', torch.from_numpy(p))
         self._K = K
@@ -354,7 +381,7 @@ class MSTGCNHead(nn.Module):
         return [getattr(self, f'_cheb_{i}') for i in range(self._K)]
 
     def forward(self, x: torch.Tensor,
-                obs_mask=None, restore_alpha=None) -> torch.Tensor:
+                **kwargs) -> torch.Tensor:
         if self.ts_input:
             x = x.unsqueeze(2)
         else:
@@ -373,13 +400,13 @@ class TGCNHead(nn.Module):
 
     Requires single-channel input. For e2e mode (ts_input=False),
     projects D -> 1 via learned linear layer before feeding to TGCN.
-    Uses identity adjacency matrix.
+    Accepts external adjacency matrix; falls back to identity if not provided.
     """
 
     def __init__(self, num_variates: int, d_model: int = 128,
                  pred_len: int = 12, seq_len: int = 12,
                  ts_input: bool = False, hidden_dim: int = 128,
-                 **kwargs):
+                 adj: np.ndarray = None, **kwargs):
         super().__init__()
         self.ts_input = ts_input
         self._hidden_dim = hidden_dim
@@ -389,17 +416,17 @@ class TGCNHead(nn.Module):
         if not ts_input:
             self.channel_proj = nn.Linear(d_model, 1)
 
-        adj = np.eye(num_variates, dtype=np.float32)
+        if adj is None:
+            adj = np.eye(num_variates, dtype=np.float32)
         self.tgcn_cell = _TGCNCell(adj, hidden_dim)
         self.regressor = nn.Linear(hidden_dim, pred_len)
 
     def forward(self, x: torch.Tensor,
-                obs_mask=None, restore_alpha=None) -> torch.Tensor:
+                **kwargs) -> torch.Tensor:
         """
         Args:
             x: [B, N, L, D] (default) or [B, N, T] (ts_input).
             obs_mask: Ignored.
-            restore_alpha: Ignored.
         Returns:
             [B, N, pred_len].
         """

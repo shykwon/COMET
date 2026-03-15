@@ -5,7 +5,7 @@ End-to-end architecture:
   1. PatchEmbedding: (B, N, T) → (B, N, L, D)
   2. CI-Mamba temporal encoding (per-variate independent)
   3. PatchLevelEncoder: observed variate patches → system state Q_sub + enriched tokens
-  4. Codebook soft lookup: Q_sub → weights w, confidence
+  4. Codebook soft lookup: Q_sub → weights w
   5. TwoStageDecoder: missing variate patches restored via obs cross-attn + codebook
   6. MTGNN forecast head: (B, N, L, D) → (B, N, pred_len)
 
@@ -16,6 +16,7 @@ Ablation (ts_input=True):
   6c. MTGNN head with in_dim=1: (B, N, T) → (B, N, pred_len)
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
 from typing import Dict, Any, Optional, Tuple
@@ -54,17 +55,14 @@ class COMET(nn.Module):
         dropout: float = 0.1,
         temporal_config: Optional[Dict[str, Any]] = None,
         use_codebook: bool = True,
-        restore_alpha: float = 0.1,
-        adaptive_alpha: bool = True,
         ts_input: bool = False,
         head_type: str = 'mtgnn',
+        head_adj: Optional[np.ndarray] = None,
     ):
         super().__init__()
         self.num_variates = num_variates
         self.seq_len = seq_len
         self.use_codebook = use_codebook
-        self.restore_alpha = restore_alpha
-        self.adaptive_alpha = adaptive_alpha
         self.d_model = d_model
         self.ts_input = ts_input
 
@@ -115,24 +113,23 @@ class COMET(nn.Module):
 
         # ⑥ Forecast Head
         HeadClass = HEAD_CLASSES[head_type]
+        head_kwargs = dict(
+            num_variates=num_variates, d_model=d_model,
+            pred_len=pred_len, dropout=0.3,
+        )
+        if head_adj is not None and head_type != 'mtgnn':
+            head_kwargs['adj'] = head_adj
+
         if ts_input:
             # Ablation: project patch embeddings → time series, head receives [B,N,T]
             self.patch_to_ts = nn.Sequential(
                 nn.Linear(d_model, d_model * 2), nn.GELU(),
                 nn.Linear(d_model * 2, seq_len),
             )
-            self.head = HeadClass(
-                num_variates=num_variates, d_model=d_model,
-                pred_len=pred_len, seq_len=seq_len,
-                dropout=0.3, ts_input=True,
-            )
+            self.head = HeadClass(seq_len=seq_len, ts_input=True, **head_kwargs)
         else:
             # Default: head receives patch embeddings [B,N,L,D]
-            self.head = HeadClass(
-                num_variates=num_variates, d_model=d_model,
-                pred_len=pred_len, seq_len=num_patches,
-                dropout=0.3, ts_input=False,
-            )
+            self.head = HeadClass(seq_len=num_patches, ts_input=False, **head_kwargs)
 
     def forward(
         self,
@@ -146,7 +143,7 @@ class COMET(nn.Module):
             obs_mask: [B, N] boolean, True = observed.
 
         Returns:
-            y_hat [B, N, pred_len], Q_sub [B, d], w_sub [B, K], confidence [B].
+            y_hat [B, N, pred_len], Q_sub [B, d], w_sub [B, K].
         """
         B, N, T = x_full.shape
         D = self.d_model
@@ -203,7 +200,7 @@ class COMET(nn.Module):
 
         # ④ Codebook
         if self.use_codebook:
-            w_sub, confidence = self.codebook.soft_lookup(Q_sub, obs_ratio=obs_ratio)
+            w_sub = self.codebook.soft_lookup(Q_sub)
 
             # ⑤ TwoStageDecoder
             E_restored = self.decoder(
@@ -219,7 +216,6 @@ class COMET(nn.Module):
         else:
             K = self.codebook.C.shape[0]
             w_sub = torch.ones(B, K, device=device, dtype=h_patched.dtype) / K
-            confidence = torch.zeros(B, device=device, dtype=h_patched.dtype)
             # nocb: decoder Stage A only (obs cross-attn), skip Stage B (codebook)
             E_restored = self.decoder(
                 h_patches=h_patched,
@@ -235,28 +231,20 @@ class COMET(nn.Module):
 
         # ⑥ Forecast Head
         if self.ts_input:
-            # Ablation: pool patches → project to time series → overwrite observed
-            x_decoded = self.patch_to_ts(E_restored.mean(dim=2))  # [B, N, L, D] → pool → [B, N, D] → [B, N, T]
+            x_decoded = self.patch_to_ts(E_restored.mean(dim=2))
             obs_3d = obs_mask.unsqueeze(-1).expand_as(x_decoded)
             x_decoded = x_decoded.clone()
             x_decoded[obs_3d] = x_full[obs_3d].to(x_decoded.dtype)
-            head_input = x_decoded  # [B, N, T]
+            head_input = x_decoded
         else:
-            head_input = E_restored  # [B, N, L, D]
+            head_input = E_restored
 
-        if self.use_codebook and self.restore_alpha > 0:
-            if self.adaptive_alpha:
-                alpha = self.restore_alpha + (1 - self.restore_alpha) * confidence
-            else:
-                alpha = self.restore_alpha
-            y_hat = self.head(head_input, obs_mask=obs_mask, restore_alpha=alpha)
-        else:
-            y_hat = self.head(head_input)
+        y_hat = self.head(head_input)
 
         if return_embeddings:
-            E_var = E_restored.mean(dim=2)  # [B, N, D] for compatibility
-            return y_hat, Q_sub, w_sub, confidence, E_var, None
-        return y_hat, Q_sub, w_sub, confidence
+            E_var = E_restored.mean(dim=2)
+            return y_hat, Q_sub, w_sub, E_var, None
+        return y_hat, Q_sub, w_sub
 
     def forward_full(self, x: torch.Tensor,
                      return_embeddings: bool = False):
@@ -278,7 +266,7 @@ class COMET(nn.Module):
 
         # ④ Codebook
         if self.use_codebook:
-            w_full, _ = self.codebook.soft_lookup(Q_full, obs_ratio=torch.ones(B, device=device))
+            w_full = self.codebook.soft_lookup(Q_full)
         else:
             K = self.codebook.C.shape[0]
             w_full = torch.ones(B, K, device=device, dtype=h_patched.dtype) / K

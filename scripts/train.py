@@ -64,13 +64,17 @@ def parse_args():
     p.add_argument("--stage1_epochs", type=int)
     p.add_argument("--stage2_min_epochs", type=int)
     p.add_argument("--stage2_max_epochs", type=int)
-    p.add_argument("--restore_alpha", type=float)
+    p.add_argument("--restore_alpha", type=float, help="(deprecated, ignored)")
     p.add_argument("--disable_stage3", action="store_true")
     p.add_argument("--no_codebook", action="store_true")
     p.add_argument("--temporal_type", type=str, choices=["mamba", "transformer", "conv1d", "identity"],
                    help="Ablation: temporal path variant")
     p.add_argument("--null_val", type=float)
     p.add_argument("--amp_bf16", action="store_true")
+    p.add_argument("--adj_from", type=str,
+                   help="Path to MTGNN checkpoint dir to extract learned adj for non-MTGNN heads")
+    p.add_argument("--adj_file", type=str,
+                   help="Path to pre-computed adj file (.pkl or .npy) for non-MTGNN heads")
     p.add_argument("--resume", type=str)
     p.add_argument("--debug", action="store_true")
     return p.parse_args()
@@ -177,7 +181,7 @@ def evaluate(model, loader, device, scaler, missing_rate=0.0,
             B, N, T = x.shape
 
             obs_mask = apply_masking(N, missing_rate, device, B)
-            y_hat, _, _, _ = model(x, obs_mask)
+            y_hat, _, _ = model(x, obs_mask)
 
             if missing_rate > 0:
                 m3d = obs_mask.unsqueeze(-1).expand_as(y_hat)
@@ -275,7 +279,7 @@ def train_one_epoch(model, loader, optimizer, scheduler, device, state,
         obs_mask = apply_masking(N, mask_ratio, device, B)
 
         with torch.amp.autocast('cuda', enabled=scaler_amp is not None, dtype=torch.bfloat16):
-            y_hat, Q_sub, w_sub, confidence = model(x, obs_mask)
+            y_hat, Q_sub, w_sub = model(x, obs_mask)
 
             need_teacher = lam_a > 0 or lam_m > 0
             if need_teacher:
@@ -424,6 +428,50 @@ def main():
     ts_input = model_cfg.get("ts_input", False)
     head_type = model_cfg.get("head_type", "mtgnn")
     temporal_type = model_cfg.get("temporal", {}).get("type", "mamba")
+
+    # Extract adj for non-MTGNN heads
+    head_adj = None
+    if head_type != 'mtgnn':
+        import numpy as np
+        if args.adj_file:
+            # Load pre-computed adj file (e.g., METR-LA sensor graph)
+            adj_path = Path(args.adj_file)
+            if adj_path.suffix == '.pkl':
+                import pickle
+                with open(adj_path, 'rb') as f:
+                    obj = pickle.load(f, encoding='latin1')
+                    if isinstance(obj, (list, tuple)):
+                        head_adj = obj[-1]  # (sensor_ids, id_to_ind, adj_mx)
+                    else:
+                        head_adj = obj
+                head_adj = np.array(head_adj, dtype=np.float32)
+            elif adj_path.suffix == '.npy':
+                head_adj = np.load(adj_path).astype(np.float32)
+            else:
+                raise ValueError(f"Unsupported adj file format: {adj_path.suffix}")
+            print(f"  Loaded adj from file: {args.adj_file}, shape={head_adj.shape}")
+        elif args.adj_from:
+            # Extract adj from pre-trained MTGNN checkpoint
+            adj_ckpt_path = Path(args.adj_from) / "best_model.pt"
+            if adj_ckpt_path.exists():
+                print(f"  Loading adj from MTGNN checkpoint: {args.adj_from}")
+                adj_state = torch.load(adj_ckpt_path, map_location='cpu')
+                tmp_model = COMET(
+                    num_variates=num_variates, seq_len=data_cfg["seq_len"],
+                    pred_len=data_cfg["pred_len"], d_model=model_cfg["d_model"],
+                    n_heads=model_cfg["n_heads"], codebook_K=cb_cfg["K"],
+                    codebook_tau=cb_cfg["tau"], patch_len=model_cfg["patch_len"],
+                    stride=model_cfg["stride"], head_type='mtgnn',
+                )
+                tmp_model.load_state_dict(adj_state['model_state_dict'], strict=False)
+                head_adj = tmp_model.head.get_adj()
+                del tmp_model
+                print(f"  Extracted adj from MTGNN: shape={head_adj.shape}")
+            else:
+                print(f"  WARNING: adj checkpoint not found at {adj_ckpt_path}, using identity adj")
+        else:
+            print(f"  WARNING: non-MTGNN head '{head_type}' without --adj_from or --adj_file, using identity adj")
+
     model = COMET(
         num_variates=num_variates,
         seq_len=data_cfg["seq_len"],
@@ -439,10 +487,9 @@ def main():
         dropout=model_cfg["dropout"],
         temporal_config=model_cfg.get("temporal"),
         use_codebook=model_cfg.get("use_codebook", True),
-        restore_alpha=model_cfg.get("restore_alpha", 0.1),
-        adaptive_alpha=model_cfg.get("adaptive_alpha", True),
         ts_input=ts_input,
         head_type=head_type,
+        head_adj=head_adj,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -481,8 +528,7 @@ def main():
     use_cb = model_cfg.get("use_codebook", True)
     cb_tag = "" if use_cb else "_nocb"
     head_tag = f"_{head_type}" if head_type != "mtgnn" else ""
-    ra_tag = "_ra0" if model_cfg.get("restore_alpha", 0.1) == 0 else ""
-    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}{ra_tag}_s{train_cfg['seed']}_{timestamp}"
+    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}_s{train_cfg['seed']}_{timestamp}"
     log_dir = Path(cfg["logging"]["log_dir"]) / exp_name
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "config.yaml", "w") as f:
@@ -538,7 +584,7 @@ def main():
                 xw, yw = wb[0].to(device), wb[1].to(device)
                 B_w, N_w, _ = xw.shape
                 mask_w = apply_masking(N_w, 0.25, device, B_w)
-                y_hat_w, Q_w, w_w, _ = model(xw, mask_w)
+                y_hat_w, Q_w, w_w = model(xw, mask_w)
                 _, Q_f, w_f = model.forward_full(xw)
                 del xw, yw, mask_w, y_hat_w, Q_w, w_w, Q_f, w_f, wb
             # Do NOT call empty_cache() — keep memory mapped for Stage 2
