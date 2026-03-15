@@ -87,7 +87,7 @@ class MTGNNHead(nn.Module):
                  gcn_depth: int = 2, propalpha: float = 0.05,
                  tanhalpha: float = 3.0, dropout: float = 0.3,
                  dilation_exponential: int = 1,
-                 ts_input: bool = False):
+                 ts_input: bool = False, **kwargs):
         super().__init__()
         self.num_variates = num_variates
         self.pred_len = pred_len
