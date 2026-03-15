@@ -49,7 +49,7 @@ for HEAD in astgcn mstgcn tgcn; do
   for dir in $(ls -d logs/comet_ecg5000_K16_conv1d_${HEAD}_s* 2>/dev/null); do
     if [ ! -f "$dir/eval_100samples_mr0.85.json" ]; then
       echo "[$(date)] Eval $dir"
-      python3 scripts/evaluate.py "$dir" --missing_rate 0.85 --n_samples 100 --batch_size 64
+      python3 scripts/evaluate.py "$dir" --missing_rate 0.85 --n_samples 100 --batch_size 64 --adj_from $ADJ_FROM
     fi
   done
 done
@@ -73,10 +73,14 @@ for HEAD in mtgnn astgcn mstgcn tgcn; do
   done
 
   echo "[$(date)] === nocb $HEAD eval ==="
+  EVAL_ADJ=""
+  if [ "$HEAD" != "mtgnn" ]; then
+    EVAL_ADJ="--adj_from $ADJ_FROM"
+  fi
   for dir in $(ls -d logs/comet_ecg5000_K16_conv1d_${HEAD}_nocb_s* logs/comet_ecg5000_K16_conv1d_nocb_s* 2>/dev/null); do
     if [ -d "$dir" ] && [ ! -f "$dir/eval_100samples_mr0.85.json" ]; then
       echo "[$(date)] Eval $dir"
-      python3 scripts/evaluate.py "$dir" --missing_rate 0.85 --n_samples 100 --batch_size 64
+      python3 scripts/evaluate.py "$dir" --missing_rate 0.85 --n_samples 100 --batch_size 64 $EVAL_ADJ
     fi
   done
 done

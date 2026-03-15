@@ -87,6 +87,8 @@ def main():
     parser.add_argument("--n_samples", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--cpu", action="store_true", help="Force CPU evaluation")
+    parser.add_argument("--adj_from", type=str, help="Path to MTGNN checkpoint dir for adj extraction")
+    parser.add_argument("--adj_file", type=str, help="Path to pre-computed adj file (.pkl or .npy)")
     args = parser.parse_args()
 
     exp_dir = Path(args.exp_dir)
@@ -116,6 +118,36 @@ def main():
     )
 
     cb_cfg = cfg["model"]["codebook"]
+    head_type = cfg["model"].get("head_type", "mtgnn")
+
+    # Load adj for non-MTGNN heads
+    head_adj = None
+    if head_type != 'mtgnn':
+        if args.adj_file:
+            import pickle
+            adj_path = Path(args.adj_file)
+            if adj_path.suffix == '.pkl':
+                with open(adj_path, 'rb') as f:
+                    obj = pickle.load(f, encoding='latin1')
+                    head_adj = np.array(obj[-1] if isinstance(obj, (list, tuple)) else obj, dtype=np.float32)
+            elif adj_path.suffix == '.npy':
+                head_adj = np.load(adj_path).astype(np.float32)
+            print(f"  Loaded adj from file: {args.adj_file}, shape={head_adj.shape}")
+        elif args.adj_from:
+            adj_ckpt = Path(args.adj_from) / "best_model.pt"
+            if adj_ckpt.exists():
+                tmp = COMET(
+                    num_variates=num_variates, seq_len=data_cfg["seq_len"],
+                    pred_len=data_cfg["pred_len"], d_model=cfg["model"]["d_model"],
+                    n_heads=cfg["model"]["n_heads"], codebook_K=cb_cfg["K"],
+                    codebook_tau=cb_cfg["tau"], patch_len=cfg["model"]["patch_len"],
+                    stride=cfg["model"]["stride"], head_type='mtgnn',
+                )
+                tmp.load_state_dict(torch.load(adj_ckpt, map_location='cpu')['model_state_dict'], strict=False)
+                head_adj = tmp.head.get_adj()
+                del tmp
+                print(f"  Extracted adj from MTGNN: shape={head_adj.shape}")
+
     model = COMET(
         num_variates=num_variates,
         seq_len=data_cfg["seq_len"],
@@ -132,7 +164,8 @@ def main():
         temporal_config=cfg["model"].get("temporal"),
         use_codebook=cfg["model"].get("use_codebook", True),
         ts_input=cfg["model"].get("ts_input", False),
-        head_type=cfg["model"].get("head_type", "mtgnn"),
+        head_type=head_type,
+        head_adj=head_adj,
     ).to(device)
 
     # Dummy forward to initialize lazy layers
