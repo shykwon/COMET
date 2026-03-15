@@ -20,7 +20,7 @@
 
 ## P3: COMET 제안
 
-본 논문은 이러한 2-stage 구조의 한계를 근본적으로 해소하는 COMET (**CO**debook-augmented **M**ultivariate time-series forecasting with **E**xpertise **T**ransfer)을 제안한다. COMET은 변수 복원과 예측을 하나의 모델에서 수행하는 end-to-end 프레임워크로, 전 과정이 임베딩 공간에서 이루어진다. 관측 변수를 패치 임베딩으로 인코딩하고, 결측 변수를 임베딩 수준에서 복원하며, 복원된 임베딩으로부터 직접 예측을 생성한다. 원시 시계열 공간으로 되돌아가는 과정이 없으므로 앞서 지적한 세 가지 한계가 구조적으로 제거된다.
+본 논문은 이러한 2-stage 구조의 한계를 근본적으로 해소하는 COMET (**CO**debook-augmented **M**ultivariate time-series forecasting with **E**xpertise **T**ransfer)을 제안한다. COMET은 변수 복원과 예측을 하나의 모델에서 수행하는 end-to-end 프레임워크로, 전 과정이 임베딩 공간에서 이루어진다. 관측 변수를 패치 임베딩으로 인코딩하고, 결측 변수는 관측 변수 패치와의 cross-attention 및 codebook 패턴과의 cross-attention을 통해 임베딩 수준에서 2단계로 복원한 뒤, 복원된 임베딩으로부터 직접 예측을 생성한다. 원시 시계열 공간으로 되돌아가는 과정이 없으므로 앞서 지적한 세 가지 한계가 구조적으로 제거된다.
 
 COMET의 핵심은 **codebook gating 메커니즘**이다. 학습 시 전체 변수가 관측된 데이터로부터 시스템의 정상 상태 패턴을 codebook에 압축 저장한다. 추론 시에는 encoder가 현재 관측 상태를 요약하고, 이 요약을 기반으로 codebook에서 관련 패턴을 선택적으로 활성화(gating)하여 decoder에 전달한다. 이를 통해 관측 상태의 요약 품질이 패턴 선택, 복원, 예측 성능으로 직결되는 인과 경로가 형성된다.
 

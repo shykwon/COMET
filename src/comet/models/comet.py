@@ -220,7 +220,18 @@ class COMET(nn.Module):
             K = self.codebook.C.shape[0]
             w_sub = torch.ones(B, K, device=device, dtype=h_patched.dtype) / K
             confidence = torch.zeros(B, device=device, dtype=h_patched.dtype)
-            E_restored = h_patched
+            # nocb: decoder Stage A only (obs cross-attn), skip Stage B (codebook)
+            E_restored = self.decoder(
+                h_patches=h_patched,
+                tokens_obs_patches=tokens_obs_patches,
+                codebook_C=self.codebook.C,
+                obs_indices=obs_idx,
+                miss_indices=miss_idx,
+                obs_padding_mask=obs_pad,
+                miss_padding_mask=miss_pad,
+                w_sub=None,
+                skip_codebook=True,
+            )
 
         # ⑥ Forecast Head
         if self.ts_input:

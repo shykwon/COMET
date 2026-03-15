@@ -87,6 +87,7 @@ class TwoStageDecoder(nn.Module):
         obs_padding_mask: Optional[torch.Tensor] = None,
         miss_padding_mask: Optional[torch.Tensor] = None,
         w_sub: Optional[torch.Tensor] = None,
+        skip_codebook: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -129,12 +130,15 @@ class TwoStageDecoder(nn.Module):
         # Fast path: all variates observed
         if N_prime_max == N and M_max == 0 and _no_obs_pad:
             obs_flat = tokens_obs_patches.reshape(B, N * L, D)
-            attn_obs, _ = self.cross_attn_obs_refine(
-                query=self.norm_obs1(obs_flat), key=C_expanded, value=C_expanded,
-            )
-            obs_out = obs_flat + attn_obs
-            obs_out = obs_out + self.ffn_obs(self.norm_obs2(obs_out))
-            obs_out = h_patches.reshape(B, N * L, D) + obs_out
+            if not skip_codebook:
+                attn_obs, _ = self.cross_attn_obs_refine(
+                    query=self.norm_obs1(obs_flat), key=C_expanded, value=C_expanded,
+                )
+                obs_out = obs_flat + attn_obs
+                obs_out = obs_out + self.ffn_obs(self.norm_obs2(obs_out))
+                obs_out = h_patches.reshape(B, N * L, D) + obs_out
+            else:
+                obs_out = h_patches.reshape(B, N * L, D) + obs_flat
             return obs_out.reshape(B, N, L, D)
 
         E_restored = torch.zeros(B, N, L, D, device=device, dtype=_dtype)
@@ -145,12 +149,15 @@ class TwoStageDecoder(nn.Module):
             h_obs_patches = torch.gather(h_patches, 1, idx_4d)
 
             obs_flat = tokens_obs_patches.reshape(B, N_prime_max * L, D)
-            attn_obs, _ = self.cross_attn_obs_refine(
-                query=self.norm_obs1(obs_flat), key=C_expanded, value=C_expanded,
-            )
-            obs_out = obs_flat + attn_obs
-            obs_out = obs_out + self.ffn_obs(self.norm_obs2(obs_out))
-            obs_out = h_obs_patches.reshape(B, N_prime_max * L, D) + obs_out
+            if not skip_codebook:
+                attn_obs, _ = self.cross_attn_obs_refine(
+                    query=self.norm_obs1(obs_flat), key=C_expanded, value=C_expanded,
+                )
+                obs_out = obs_flat + attn_obs
+                obs_out = obs_out + self.ffn_obs(self.norm_obs2(obs_out))
+                obs_out = h_obs_patches.reshape(B, N_prime_max * L, D) + obs_out
+            else:
+                obs_out = h_obs_patches.reshape(B, N_prime_max * L, D) + obs_flat
             obs_out = obs_out.reshape(B, N_prime_max, L, D)
 
             if _no_obs_pad:
@@ -187,12 +194,13 @@ class TwoStageDecoder(nn.Module):
             miss_flat = miss_flat + miss_a
             miss_flat = miss_flat + self.ffn_a(self.norm_a2(miss_flat))
 
-            # Stage B: cross-attend to codebook
-            miss_b, _ = self.cross_attn_cb(
-                query=self.norm_b1(miss_flat), key=C_expanded, value=C_expanded,
-            )
-            miss_flat = miss_flat + miss_b
-            miss_flat = miss_flat + self.ffn_b(self.norm_b2(miss_flat))
+            # Stage B: cross-attend to codebook (skip if no codebook)
+            if not skip_codebook:
+                miss_b, _ = self.cross_attn_cb(
+                    query=self.norm_b1(miss_flat), key=C_expanded, value=C_expanded,
+                )
+                miss_flat = miss_flat + miss_b
+                miss_flat = miss_flat + self.ffn_b(self.norm_b2(miss_flat))
 
             miss_out = miss_flat.reshape(B, M_max, L, D)
 
