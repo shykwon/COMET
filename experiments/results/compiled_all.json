@@ -1,0 +1,88 @@
+{
+  "ECG5000": {
+    "mtgnn": {
+      "comet": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.1156875675791462,
+        "ObsMAE_std": 0.5391680750400684,
+        "ObsRMSE_mean": 5.2726210900949715,
+        "ObsRMSE_std": 1.054423060553994
+      },
+      "nocb": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.0965258411274728,
+        "ObsMAE_std": 0.553689905533492,
+        "ObsRMSE_mean": 5.301813294743413,
+        "ObsRMSE_std": 1.069854717635394
+      }
+    },
+    "astgcn": {
+      "comet": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.1249985081028933,
+        "ObsMAE_std": 0.5624283615568145,
+        "ObsRMSE_mean": 5.362711041196207,
+        "ObsRMSE_std": 1.0803871705732693
+      },
+      "nocb": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.1169048982186855,
+        "ObsMAE_std": 0.5654142166019417,
+        "ObsRMSE_mean": 5.350082714359133,
+        "ObsRMSE_std": 1.0760340769893129
+      }
+    },
+    "mstgcn": {
+      "comet": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.0800632446786818,
+        "ObsMAE_std": 0.5430556572692248,
+        "ObsRMSE_mean": 5.272636788707024,
+        "ObsRMSE_std": 1.0456861598533351
+      },
+      "nocb": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.0780073047592467,
+        "ObsMAE_std": 0.5524805984522687,
+        "ObsRMSE_mean": 5.272227617395713,
+        "ObsRMSE_std": 1.0577344092396057
+      }
+    },
+    "tgcn": {
+      "comet": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.2537902540408514,
+        "ObsMAE_std": 0.5759203838762215,
+        "ObsRMSE_mean": 5.521766794369941,
+        "ObsRMSE_std": 1.097009169089408
+      },
+      "nocb": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 3.2569826476133095,
+        "ObsMAE_std": 0.5836146892613583,
+        "ObsRMSE_mean": 5.5462603595706295,
+        "ObsRMSE_std": 1.1084127818576097
+      }
+    }
+  },
+  "ETTh1": {
+    "mtgnn": {
+      "comet": {
+        "n_seeds": 10,
+        "n_runs": 1000,
+        "ObsMAE_mean": 1.659604836953997,
+        "ObsMAE_std": 0.8731824694191005,
+        "ObsRMSE_mean": 2.901040824035755,
+        "ObsRMSE_std": 1.6987467228269049
+      }
+    }
+  }
+}

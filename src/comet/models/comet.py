@@ -121,9 +121,9 @@ class COMET(nn.Module):
             head_kwargs['adj'] = head_adj
 
         if ts_input:
-            # Ablation: project patch embeddings → time series, head receives [B,N,T]
+            # Ablation: flatten patches → project to time series (PatchTST-style)
             self.patch_to_ts = nn.Sequential(
-                nn.Linear(d_model, d_model * 2), nn.GELU(),
+                nn.Linear(num_patches * d_model, d_model * 2), nn.GELU(),
                 nn.Linear(d_model * 2, seq_len),
             )
             self.head = HeadClass(seq_len=seq_len, ts_input=True, **head_kwargs)
@@ -231,7 +231,8 @@ class COMET(nn.Module):
 
         # ⑥ Forecast Head
         if self.ts_input:
-            x_decoded = self.patch_to_ts(E_restored.mean(dim=2))
+            B_h, N_h, L_h, D_h = E_restored.shape
+            x_decoded = self.patch_to_ts(E_restored.reshape(B_h, N_h, L_h * D_h))
             obs_3d = obs_mask.unsqueeze(-1).expand_as(x_decoded)
             x_decoded = x_decoded.clone()
             x_decoded[obs_3d] = x_full[obs_3d].to(x_decoded.dtype)
