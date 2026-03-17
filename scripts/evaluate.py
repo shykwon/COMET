@@ -19,7 +19,7 @@ from comet.models.comet import COMET
 from comet.data.dataset import create_dataloaders
 
 
-def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variates):
+def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variates, use_amp=False):
     """Single evaluation with a fixed sensor mask."""
     model.eval()
     preds_list, trues_list, raw_list = [], [], []
@@ -35,7 +35,8 @@ def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variate
             x, y = batch[0].to(device), batch[1].to(device)
             B = x.shape[0]
             obs_mask = fixed_mask.unsqueeze(0).expand(B, -1)
-            y_hat, _, _ = model(x, obs_mask)
+            with torch.amp.autocast('cuda', enabled=use_amp, dtype=torch.bfloat16):
+                y_hat, _, _ = model(x, obs_mask)
             preds_list.append(y_hat.cpu().numpy())
             trues_list.append(y.cpu().numpy())
             if len(batch) > 2:
@@ -87,6 +88,7 @@ def main():
     parser.add_argument("--n_samples", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--cpu", action="store_true", help="Force CPU evaluation")
+    parser.add_argument("--amp_bf16", action="store_true", help="Use bf16 mixed precision for evaluation")
     parser.add_argument("--adj_from", type=str, help="Path to MTGNN checkpoint dir for adj extraction")
     parser.add_argument("--adj_file", type=str, help="Path to pre-computed adj file (.pkl or .npy)")
     args = parser.parse_args()
@@ -191,7 +193,8 @@ def main():
 
     for i in range(args.n_samples):
         r = evaluate_once(model, test_loader, device, scaler,
-                          args.missing_rate, seed=i, num_variates=num_variates)
+                          args.missing_rate, seed=i, num_variates=num_variates,
+                          use_amp=args.amp_bf16)
         results.append(r)
         if (i + 1) % 10 == 0:
             elapsed = time.time() - t0
