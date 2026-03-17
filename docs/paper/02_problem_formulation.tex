@@ -1,0 +1,9 @@
+% =============================================================
+% Section 2: Problem Formulation
+% =============================================================
+
+\section{Problem Formulation}
+
+$N$개의 변수로 구성된 다변량 시계열에서, 각 시점 $t$의 관측값은 $\mathbf{z}_t \in \mathbb{R}^N$이다. 과거 $P$개 시점의 입력 $\mathbf{X} = \{\mathbf{z}_{t_1}, \ldots, \mathbf{z}_{t_P}\}$로부터 미래 $Q$개 시점 $\mathbf{Y} = \{\mathbf{z}_{t_{P+1}}, \ldots, \mathbf{z}_{t_{P+Q}}\}$를 예측하는 매핑 $f: \mathbf{X} \rightarrow \mathbf{Y}$를 학습한다.
+
+Variable Subset Forecasting (VSF)~\cite{chauhan2022vsf}에서는 학습 시 모든 $N$개 변수를 사용하지만, 추론 시에는 임의의 부분집합 $\mathcal{S} \subset \{1, \ldots, N\}$, $|\mathcal{S}| \ll N$만 관측 가능하다. $\mathcal{S}$는 추론 시점에 무작위로 결정된다. 관측 마스크 $\mathbf{m} \in \{0, 1\}^N$으로 이를 표현하며, $m_i = 1$이면 변수 $i \in \mathcal{S}$가 관측된 것이다. 관측되지 않는 변수($m_i = 0$)의 입력은 0으로 대체한다. 모델은 이 부분 관측으로 모든 $N$개 변수의 미래 값을 예측하되, 평가는 관측 변수 $\mathcal{S}$에 대해서만 수행한다.
