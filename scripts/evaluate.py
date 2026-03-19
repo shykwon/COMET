@@ -37,7 +37,7 @@ def evaluate_once(model, loader, device, scaler, missing_rate, seed, num_variate
             obs_mask = fixed_mask.unsqueeze(0).expand(B, -1)
             with torch.amp.autocast('cuda', enabled=use_amp, dtype=torch.bfloat16):
                 y_hat, _, _ = model(x, obs_mask)
-            preds_list.append(y_hat.cpu().numpy())
+            preds_list.append(y_hat.float().cpu().numpy())
             trues_list.append(y.cpu().numpy())
             if len(batch) > 2:
                 raw_list.append(batch[2].numpy())
