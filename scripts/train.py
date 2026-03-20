@@ -76,6 +76,11 @@ def parse_args():
                    help="Path to pre-computed adj file (.pkl or .npy) for non-MTGNN heads")
     p.add_argument("--resume", type=str)
     p.add_argument("--debug", action="store_true")
+    # Codebook ablation flags
+    p.add_argument("--hard_lookup", action="store_true", help="Ablation: hard lookup (ST estimator) instead of soft")
+    p.add_argument("--no_revival", action="store_true", help="Ablation: disable dead entry revival")
+    p.add_argument("--no_ema", action="store_true", help="Ablation: disable EMA update (freeze C after K-Means init)")
+    p.add_argument("--film", action="store_true", help="Ablation: FiLM modulation instead of Stage B cross-attention")
     return p.parse_args()
 
 
@@ -250,7 +255,8 @@ def evaluate(model, loader, device, scaler, missing_rate=0.0,
 def train_one_epoch(model, loader, optimizer, scheduler, device, state,
                     scaler_amp, loss_fn, entropy_reg_weight, miss_loss_weight,
                     collect_q, q_buffer, daytime_buffer, log_interval,
-                    scaler, denorm_loss, null_val, disable_ema):
+                    scaler, denorm_loss, null_val, disable_ema,
+                    no_ema=False, no_revival=False):
     model.train()
     totals = {k: 0.0 for k in ["loss", "task", "nce", "match", "entropy", "miss"]}
     cos_sims, perplexities = [], []
@@ -362,8 +368,9 @@ def train_one_epoch(model, loader, optimizer, scheduler, device, state,
                 y_orig = y * sc_std.unsqueeze(0).unsqueeze(-1) + sc_mean.unsqueeze(0).unsqueeze(-1)
                 is_daytime = (y_orig.abs() > 0.1).float().mean(dim=[1, 2]) > 0.3
 
-        if not disable_ema and state.codebook_initialized and (lam_a > 0 or lam_m > 0):
-            model.codebook.ema_update(Q_full.detach(), w_full.detach(), is_daytime=is_daytime)
+        if not disable_ema and not no_ema and state.codebook_initialized and (lam_a > 0 or lam_m > 0):
+            model.codebook.ema_update(Q_full.detach(), w_full.detach(),
+                                      is_daytime=is_daytime, no_revival=no_revival)
 
         if collect_q and q_buffer is not None:
             with torch.no_grad():
@@ -488,6 +495,8 @@ def main():
         ts_input=ts_input,
         head_type=head_type,
         head_adj=head_adj,
+        hard_lookup=args.hard_lookup,
+        use_film=args.film,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -526,7 +535,14 @@ def main():
     use_cb = model_cfg.get("use_codebook", True)
     cb_tag = "" if use_cb else "_nocb"
     head_tag = f"_{head_type}" if head_type != "mtgnn" else ""
-    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}_s{train_cfg['seed']}_{timestamp}"
+    # Ablation tags
+    abl_tags = ""
+    if args.hard_lookup: abl_tags += "_hardlk"
+    if args.no_revival: abl_tags += "_norev"
+    if args.no_ema: abl_tags += "_noema"
+    if train_cfg.get("entropy_reg_weight", 0.2) == 0: abl_tags += "_noent"
+    if args.film: abl_tags += "_film"
+    exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}{abl_tags}_s{train_cfg['seed']}_{timestamp}"
     log_dir = Path(cfg["logging"]["log_dir"]) / exp_name
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "config.yaml", "w") as f:
@@ -601,6 +617,7 @@ def main():
             cfg["logging"].get("log_interval", 50),
             scaler, train_cfg.get("denorm_loss", False),
             train_cfg.get("null_val"), disable_ema,
+            no_ema=args.no_ema, no_revival=args.no_revival,
         )
 
         val_oracle = evaluate(model, val_loader, device, scaler, 0.0, loss_fn)

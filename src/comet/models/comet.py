@@ -58,11 +58,14 @@ class COMET(nn.Module):
         ts_input: bool = False,
         head_type: str = 'mtgnn',
         head_adj: Optional[np.ndarray] = None,
+        hard_lookup: bool = False,
+        use_film: bool = False,
     ):
         super().__init__()
         self.num_variates = num_variates
         self.seq_len = seq_len
         self.use_codebook = use_codebook
+        self.hard_lookup = hard_lookup
         self.d_model = d_model
         self.ts_input = ts_input
 
@@ -109,6 +112,7 @@ class COMET(nn.Module):
             num_variates=num_variates, num_patches=num_patches,
             d_model=d_model, n_heads=n_heads, dropout=dropout,
             share_var_id_embed=self.var_id_embed,
+            use_film=use_film,
         )
 
         # ⑥ Forecast Head
@@ -200,7 +204,7 @@ class COMET(nn.Module):
 
         # ④ Codebook
         if self.use_codebook:
-            w_sub = self.codebook.soft_lookup(Q_sub)
+            w_sub = self.codebook.hard_lookup(Q_sub) if self.hard_lookup else self.codebook.soft_lookup(Q_sub)
 
             # ⑤ TwoStageDecoder
             E_restored = self.decoder(

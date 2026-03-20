@@ -36,6 +36,16 @@ class Codebook(nn.Module):
         dist_sq = torch.cdist(Q.unsqueeze(0), self.C.unsqueeze(0)).squeeze(0).pow(2)
         return F.softmax(-dist_sq / self.tau, dim=-1)
 
+    def hard_lookup(self, Q: torch.Tensor) -> torch.Tensor:
+        """Hard lookup with straight-through estimator.
+        Forward: one-hot (argmin). Backward: soft gradient.
+        """
+        dist_sq = torch.cdist(Q.unsqueeze(0), self.C.unsqueeze(0)).squeeze(0).pow(2)
+        w_soft = F.softmax(-dist_sq / self.tau, dim=-1)
+        k_star = dist_sq.argmin(dim=-1)
+        w_hard = F.one_hot(k_star, self.K).float()
+        return w_hard - w_soft.detach() + w_soft
+
     def perplexity(self, w: torch.Tensor) -> torch.Tensor:
         avg_w = w.detach().mean(dim=0)
         entropy = -(avg_w * torch.log(avg_w + 1e-8)).sum()
@@ -43,7 +53,8 @@ class Codebook(nn.Module):
 
     @torch.no_grad()
     def ema_update(self, Q_full: torch.Tensor, w_full: torch.Tensor,
-                   is_daytime: Optional[torch.Tensor] = None):
+                   is_daytime: Optional[torch.Tensor] = None,
+                   no_revival: bool = False):
         B = w_full.shape[0]
         N_usage = w_full.sum(0)
         self.usage_ema.mul_(0.99).add_(N_usage / B, alpha=0.01)
@@ -53,7 +64,8 @@ class Codebook(nn.Module):
         self.C.copy_(self.ema_alpha * self.C + (1 - self.ema_alpha) * (
             active * new_C + (1 - active) * self.C
         ))
-        self._revive_dead_entries(Q_full, is_daytime)
+        if not no_revival:
+            self._revive_dead_entries(Q_full, is_daytime)
 
     @torch.no_grad()
     def _revive_dead_entries(self, Q_full: torch.Tensor,
