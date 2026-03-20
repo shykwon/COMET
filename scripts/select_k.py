@@ -167,8 +167,6 @@ def main():
         dropout=model_cfg["dropout"],
         temporal_config=model_cfg.get("temporal"),
         use_codebook=model_cfg.get("use_codebook", True),
-        restore_alpha=model_cfg.get("restore_alpha", 0.1),
-        adaptive_alpha=model_cfg.get("adaptive_alpha", True),
         head_type=model_cfg.get("head_type", "mtgnn"),
     ).to(device)
 
@@ -213,7 +211,7 @@ def main():
             # Stage 1: no masking
             obs_mask = torch.ones(B, N, dtype=torch.bool, device=device)
 
-            y_hat, Q_sub, w_sub, _ = model(x, obs_mask)
+            y_hat, Q_sub, w_sub = model(x, obs_mask)
 
             with torch.no_grad():
                 _, Q_full, _ = model.forward_full(x)

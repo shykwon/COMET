@@ -5,7 +5,7 @@ All variants share the same interface: (B, N, L, D) -> (B, N, L, D).
 
 import torch
 import torch.nn as nn
-from typing import List, Tuple, Optional
+from typing import Tuple
 
 try:
     from mamba_ssm import Mamba2
