@@ -65,18 +65,18 @@ if [ -n "$DIR_F" ] && [ ! -f "$DIR_F/eval_100samples_mr0.85.json" ]; then
   python3 scripts/evaluate.py "$DIR_F" --missing_rate 0.85 --n_samples 100 --batch_size 64 --amp_bf16
 fi
 
-# --- G: FiLM instead of Stage B cross-attention ---
-echo "[$(date)] === G: FiLM ==="
-python3 scripts/train.py $COMMON --film
-DIR_G=$(ls -dt logs/comet_solar_K16_conv1d_*film*s0_* 2>/dev/null | head -1)
+# --- G: Soft + Direct Add ---
+echo "[$(date)] === G: Soft + Direct Add ==="
+python3 scripts/train.py $COMMON --direct_add
+DIR_G=$(ls -dt logs/comet_solar_K16_conv1d_*dadd*s0_* 2>/dev/null | grep -v hardlk | head -1)
 if [ -n "$DIR_G" ] && [ ! -f "$DIR_G/eval_100samples_mr0.85.json" ]; then
   python3 scripts/evaluate.py "$DIR_G" --missing_rate 0.85 --n_samples 100 --batch_size 64 --amp_bf16
 fi
 
-# --- H: FiLM + Hard Lookup ---
-echo "[$(date)] === H: FiLM + Hard Lookup ==="
-python3 scripts/train.py $COMMON --film --hard_lookup
-DIR_H=$(ls -dt logs/comet_solar_K16_conv1d_*hardlk*film*s0_* logs/comet_solar_K16_conv1d_*film*hardlk*s0_* 2>/dev/null | head -1)
+# --- H: Hard + Direct Add ---
+echo "[$(date)] === H: Hard + Direct Add ==="
+python3 scripts/train.py $COMMON --direct_add --hard_lookup
+DIR_H=$(ls -dt logs/comet_solar_K16_conv1d_*hardlk*dadd*s0_* logs/comet_solar_K16_conv1d_*dadd*hardlk*s0_* 2>/dev/null | head -1)
 if [ -n "$DIR_H" ] && [ ! -f "$DIR_H/eval_100samples_mr0.85.json" ]; then
   python3 scripts/evaluate.py "$DIR_H" --missing_rate 0.85 --n_samples 100 --batch_size 64 --amp_bf16
 fi
@@ -96,8 +96,8 @@ experiments = {
     'C: No EMA': 'logs/comet_solar_K16_conv1d_*noema*s0_*',
     'E: No Entropy': 'logs/comet_solar_K16_conv1d_*noent*s0_*',
     'F: No Rev+Ent': 'logs/comet_solar_K16_conv1d_*norev*noent*s0_*',
-    'G: FiLM': 'logs/comet_solar_K16_conv1d_*film*s0_*',
-    'H: FiLM+Hard': 'logs/comet_solar_K16_conv1d_*hardlk*film*s0_*',
+    'G: Soft+DAdd': 'logs/comet_solar_K16_conv1d_*dadd*s0_*',
+    'H: Hard+DAdd': 'logs/comet_solar_K16_conv1d_*hardlk*dadd*s0_*',
 }
 
 # Filter baseline: exclude ablation dirs

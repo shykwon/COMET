@@ -60,6 +60,7 @@ class COMET(nn.Module):
         head_adj: Optional[np.ndarray] = None,
         hard_lookup: bool = False,
         use_film: bool = False,
+        use_direct_add: bool = False,
     ):
         super().__init__()
         self.num_variates = num_variates
@@ -113,6 +114,7 @@ class COMET(nn.Module):
             d_model=d_model, n_heads=n_heads, dropout=dropout,
             share_var_id_embed=self.var_id_embed,
             use_film=use_film,
+            use_direct_add=use_direct_add,
         )
 
         # ⑥ Forecast Head

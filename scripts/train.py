@@ -81,6 +81,7 @@ def parse_args():
     p.add_argument("--no_revival", action="store_true", help="Ablation: disable dead entry revival")
     p.add_argument("--no_ema", action="store_true", help="Ablation: disable EMA update (freeze C after K-Means init)")
     p.add_argument("--film", action="store_true", help="Ablation: FiLM modulation instead of Stage B cross-attention")
+    p.add_argument("--direct_add", action="store_true", help="Ablation: direct add (w@C) instead of Stage B cross-attention")
     return p.parse_args()
 
 
@@ -497,6 +498,7 @@ def main():
         head_adj=head_adj,
         hard_lookup=args.hard_lookup,
         use_film=args.film,
+        use_direct_add=args.direct_add,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -542,6 +544,7 @@ def main():
     if args.no_ema: abl_tags += "_noema"
     if train_cfg.get("entropy_reg_weight", 0.2) == 0: abl_tags += "_noent"
     if args.film: abl_tags += "_film"
+    if args.direct_add: abl_tags += "_dadd"
     exp_name = f"comet_{data_cfg['dataset']}_K{cb_cfg['K']}_{temporal_type}{head_tag}{cb_tag}{abl_tags}_s{train_cfg['seed']}_{timestamp}"
     log_dir = Path(cfg["logging"]["log_dir"]) / exp_name
     log_dir.mkdir(parents=True, exist_ok=True)

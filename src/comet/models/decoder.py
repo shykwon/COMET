@@ -28,12 +28,14 @@ class TwoStageDecoder(nn.Module):
         dropout: float = 0.1,
         share_var_id_embed: Optional[nn.Embedding] = None,
         use_film: bool = False,
+        use_direct_add: bool = False,
     ):
         super().__init__()
         self.num_variates = num_variates
         self.num_patches = num_patches
         self.d_model = d_model
         self.use_film = use_film
+        self.use_direct_add = use_direct_add
 
         self.var_id_embed = share_var_id_embed or nn.Embedding(num_variates, d_model)
 
@@ -145,7 +147,10 @@ class TwoStageDecoder(nn.Module):
         if N_prime_max == N and M_max == 0 and _no_obs_pad:
             obs_flat = tokens_obs_patches.reshape(B, N * L, D)
             if not skip_codebook:
-                if self.use_film and w_sub is not None:
+                if self.use_direct_add and w_sub is not None:
+                    z_ctx = torch.matmul(w_sub, codebook_C)  # [B, D]
+                    obs_out = obs_flat + z_ctx.unsqueeze(1)
+                elif self.use_film and w_sub is not None:
                     z_ctx = torch.matmul(w_sub, codebook_C)
                     gamma = self.film_gamma(z_ctx)
                     beta = self.film_beta(z_ctx)
@@ -171,7 +176,11 @@ class TwoStageDecoder(nn.Module):
 
             obs_flat = tokens_obs_patches.reshape(B, N_prime_max * L, D)
             if not skip_codebook:
-                if self.use_film and w_sub is not None:
+                if self.use_direct_add and w_sub is not None:
+                    z_ctx = torch.matmul(w_sub, codebook_C)
+                    obs_out = obs_flat + z_ctx.unsqueeze(1)
+                    obs_out = h_obs_patches.reshape(B, N_prime_max * L, D) + obs_out
+                elif self.use_film and w_sub is not None:
                     z_ctx = torch.matmul(w_sub, codebook_C)
                     gamma = self.film_gamma(z_ctx)
                     beta = self.film_beta(z_ctx)
@@ -223,13 +232,15 @@ class TwoStageDecoder(nn.Module):
             miss_flat = miss_flat + miss_a
             miss_flat = miss_flat + self.ffn_a(self.norm_a2(miss_flat))
 
-            # Stage B: codebook → cross-attention or FiLM (skip if no codebook)
+            # Stage B: codebook → cross-attention, FiLM, or direct add (skip if no codebook)
             if not skip_codebook:
-                if self.use_film and w_sub is not None:
-                    # FiLM: w_sub @ C → context → γ, β → modulate
+                if self.use_direct_add and w_sub is not None:
                     z_ctx = torch.matmul(w_sub, codebook_C)  # [B, D]
-                    gamma = self.film_gamma(z_ctx)  # [B, D]
-                    beta = self.film_beta(z_ctx)    # [B, D]
+                    miss_flat = miss_flat + z_ctx.unsqueeze(1)
+                elif self.use_film and w_sub is not None:
+                    z_ctx = torch.matmul(w_sub, codebook_C)
+                    gamma = self.film_gamma(z_ctx)
+                    beta = self.film_beta(z_ctx)
                     miss_normed = self.film_norm(miss_flat)
                     miss_flat = miss_flat + gamma.unsqueeze(1) * miss_normed + beta.unsqueeze(1)
                 else:
