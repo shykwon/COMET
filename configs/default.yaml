@@ -57,7 +57,7 @@ training:
   denorm_loss: true
   null_val: 0.0
   miss_loss_weight: 0.5
-  disable_ema: true
+  disable_ema: false
 
 hardware:
   device: "cuda"
