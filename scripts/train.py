@@ -78,6 +78,7 @@ def parse_args():
     p.add_argument("--debug", action="store_true")
     # Codebook ablation flags
     p.add_argument("--hard_lookup", action="store_true", help="Ablation: hard lookup (ST estimator) instead of soft")
+    p.add_argument("--hard_nograd", action="store_true", help="Ablation: hard lookup without gradient (no ST)")
     p.add_argument("--no_revival", action="store_true", help="Ablation: disable dead entry revival")
     p.add_argument("--no_ema", action="store_true", help="Ablation: disable EMA update (freeze C after K-Means init)")
     p.add_argument("--film", action="store_true", help="Ablation: FiLM modulation instead of Stage B cross-attention")
@@ -497,6 +498,7 @@ def main():
         head_type=head_type,
         head_adj=head_adj,
         hard_lookup=args.hard_lookup,
+        hard_nograd=args.hard_nograd,
         use_film=args.film,
         use_direct_add=args.direct_add,
     ).to(device)
@@ -540,6 +542,7 @@ def main():
     # Ablation tags
     abl_tags = ""
     if args.hard_lookup: abl_tags += "_hardlk"
+    if args.hard_nograd: abl_tags += "_hardng"
     if args.no_revival: abl_tags += "_norev"
     if args.no_ema: abl_tags += "_noema"
     if train_cfg.get("entropy_reg_weight", 0.2) == 0: abl_tags += "_noent"

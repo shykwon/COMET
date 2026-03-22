@@ -59,6 +59,7 @@ class COMET(nn.Module):
         head_type: str = 'mtgnn',
         head_adj: Optional[np.ndarray] = None,
         hard_lookup: bool = False,
+        hard_nograd: bool = False,
         use_film: bool = False,
         use_direct_add: bool = False,
     ):
@@ -67,6 +68,7 @@ class COMET(nn.Module):
         self.seq_len = seq_len
         self.use_codebook = use_codebook
         self.hard_lookup = hard_lookup
+        self.hard_nograd = hard_nograd
         self.d_model = d_model
         self.ts_input = ts_input
 
@@ -206,7 +208,12 @@ class COMET(nn.Module):
 
         # ④ Codebook
         if self.use_codebook:
-            w_sub = self.codebook.hard_lookup(Q_sub) if self.hard_lookup else self.codebook.soft_lookup(Q_sub)
+            if self.hard_nograd:
+                w_sub = self.codebook.hard_lookup_nograd(Q_sub)
+            elif self.hard_lookup:
+                w_sub = self.codebook.hard_lookup(Q_sub)
+            else:
+                w_sub = self.codebook.soft_lookup(Q_sub)
 
             # ⑤ TwoStageDecoder
             E_restored = self.decoder(

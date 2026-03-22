@@ -46,6 +46,15 @@ class Codebook(nn.Module):
         w_hard = F.one_hot(k_star, self.K).float()
         return w_hard - w_soft.detach() + w_soft
 
+    def hard_lookup_nograd(self, Q: torch.Tensor) -> torch.Tensor:
+        """Hard lookup without gradient through selection.
+        Encoder trained via InfoNCE/KL, codebook via EMA.
+        """
+        with torch.no_grad():
+            dist_sq = torch.cdist(Q.unsqueeze(0), self.C.unsqueeze(0)).squeeze(0).pow(2)
+            k_star = dist_sq.argmin(dim=-1)
+        return F.one_hot(k_star, self.K).float().detach()
+
     def perplexity(self, w: torch.Tensor) -> torch.Tensor:
         avg_w = w.detach().mean(dim=0)
         entropy = -(avg_w * torch.log(avg_w + 1e-8)).sum()
