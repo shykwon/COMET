@@ -20,7 +20,7 @@ model:
 
   codebook:
     K: 16
-    tau: 0.5
+    tau: 0.5             # soft lookup temperature (hard lookup에서는 미사용)
     ema_alpha: 0.99
 
 data:
@@ -49,7 +49,7 @@ training:
   cos_sim_patience: 3
   lambda_align_max: 0.15
   lambda_match_max: 0.075
-  entropy_reg_weight: 0.2
+  entropy_reg_weight: 0.2   # ablation: 0으로 해도 성능 동일하나, 기본값 유지
   mask_ratio_max: 0.85
   disable_stage3: false
 
@@ -57,6 +57,8 @@ training:
   denorm_loss: true
   null_val: 0.0
   miss_loss_weight: 0.5
+
+  # EMA — 반드시 false여야 codebook이 학습됨 (true면 K-Means init 후 고정)
   disable_ema: false
 
 hardware:
